@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import useAppStore from '../../store/useAppStore';
-import { TileFactory } from './TileFactory';
+import { TileFactory } from './TileFactory'; // نسخه جدید و تمیز که دادم
 import { hexToPixel, pixelToHex, getNeighbors, HEX_MATH } from '../../utils/hexMath';
 import { squareToPixel, pixelToSquare, getSquareNeighbors, SQUARE_MATH } from '../../utils/squareMath';
 import { Logger } from '../../utils/logger';
@@ -21,11 +21,13 @@ const FabricCanvas = () => {
   const focusedTileId = useAppStore(state => state.focusedTileId);
   const setFocus = useAppStore(state => state.setFocus);
   const setOverview = useAppStore(state => state.setOverview);
+  
+  // برای تشخیص شکل فعلی (Hex/Square) هنگام دراپ کردن
   const globalSettings = useAppStore(state => state.globalSettings);
 
   const ghostObjects = useRef([]);
 
-  // ==================== 1. SETUP ====================
+  // ==================== 1. SETUP & EVENT LISTENERS ====================
   useEffect(() => {
     if (!canvasEl.current) return;
 
@@ -50,18 +52,19 @@ const FabricCanvas = () => {
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    // هندل کردن حرکت آبجکت‌ها
+    // --- Events ---
+
     canvas.on('object:moving', (e) => {
       const obj = e.target;
       obj.set({ opacity: 0.5 });
 
+      // اگر موقع حرکت زوم بودیم، برگرد به نمای کلی تا کاربر راحت ببینه
       if (useAppStore.getState().viewMode === 'focused') {
         setOverview();
       }
       showGhostSlots(obj);
     });
 
-    // هندل کردن رها کردن آبجکت
     canvas.on('object:modified', (e) => {
       const obj = e.target;
       clearGhosts();
@@ -70,14 +73,12 @@ const FabricCanvas = () => {
       handleDropLogic(obj, canvas);
     });
 
-    // کلیک روی آبجکت
     canvas.on('mouse:down', (e) => {
       if (e.target && e.target.data?.id) {
         setFocus(e.target.data.id);
       }
     });
 
-    // دبل کلیک روی بک‌گراند
     canvas.on('mouse:dblclick', (e) => {
       if (!e.target) {
         setOverview();
@@ -104,11 +105,10 @@ const FabricCanvas = () => {
     canvas.clear();
     canvas.setBackgroundColor(wallColor, () => {});
 
-    // رسم مجدد کاشی‌ها
+    // رسم کاشی‌ها
     tiles.forEach(tileData => {
       let pos;
       
-      // محاسبه پوزیشن بر اساس نوع شکل
       if (tileData.shape === 'hex') {
         pos = hexToPixel(tileData.q, tileData.r, 0, 0);
       } else {
@@ -116,6 +116,7 @@ const FabricCanvas = () => {
         pos = squareToPixel(tileData.x, tileData.y, 0, 0);
       }
 
+      // استفاده از فکتوری جدید (رابط کاربریش با قبلی یکی است)
       const tileObj = TileFactory.create(
         tileData,
         pos,
@@ -124,11 +125,12 @@ const FabricCanvas = () => {
       canvas.add(tileObj);
     });
 
+    // تنظیم دوربین با کمی تاخیر
     setTimeout(() => updateCamera(), 50);
 
   }, [tiles, wallColor, globalSettings.shape]);
 
-  // ==================== 3. CAMERA ====================
+  // ==================== 3. CAMERA LOGIC ====================
   useEffect(() => {
     updateCamera();
   }, [viewMode, focusedTileId]);
@@ -145,6 +147,7 @@ const FabricCanvas = () => {
 
     let targetBounds = null;
 
+    // ۱. حالت فوکوس روی یک کاشی
     if (viewMode === 'focused' && focusedTileId) {
       const targetObj = canvas.getObjects().find(o => o.data?.id === focusedTileId);
       if (targetObj) {
@@ -158,6 +161,7 @@ const FabricCanvas = () => {
       }
     }
 
+    // ۲. حالت نمای کلی (یا اگر کاشی فوکوس پیدا نشد)
     if (!targetBounds) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       let hasTiles = false;
@@ -183,6 +187,7 @@ const FabricCanvas = () => {
       }
     }
 
+    // ۳. اعمال انیمیشن
     if (targetBounds) {
       const scaleX = canvas.width / targetBounds.width;
       const scaleY = canvas.height / targetBounds.height;
@@ -269,14 +274,16 @@ const FabricCanvas = () => {
       });
 
     } else {
-      // --- منطق Square/Circle ---
+      // --- منطق Square/Circle (با پشتیبانی از ۸ جهت) ---
       existingCoords = new Set(allTiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
       validGhostCoords = new Set();
 
       allTiles.filter(t => t.shape !== 'hex').forEach(tile => {
         if (tile.id === draggedObj.data.id) return;
 
+        // ✅ اینجا چون getSquareNeighbors آپدیت شده، ۸ تا همسایه رو میاره
         const neighbors = getSquareNeighbors(tile.x, tile.y);
+        
         neighbors.forEach(n => {
           const key = `${n.x},${n.y}`;
           if (!existingCoords.has(key)) {
@@ -289,7 +296,6 @@ const FabricCanvas = () => {
         const [x, y] = key.split(',').map(Number);
         const pos = squareToPixel(x, y, 0, 0);
 
-        // اینجا draggedShape مهمه چون ممکنه دایره باشه یا مربع
         const ghost = TileFactory.createGhost({ x, y }, pos, draggedShape);
         const dist = Math.hypot(draggedObj.left - pos.x, draggedObj.top - pos.y);
 
@@ -321,7 +327,7 @@ const FabricCanvas = () => {
     let targetCoord, oldCoord, targetTile, hasNeighbor;
 
     if (shape === 'hex') {
-      // Hexagonal Drop Logic
+      // Hexagonal Drop
       const { q, r } = pixelToHex(obj.left, obj.top, 0, 0);
       const oldQ = obj.data.q;
       const oldR = obj.data.r;
@@ -338,7 +344,7 @@ const FabricCanvas = () => {
       });
 
     } else {
-      // Square/Circle Drop Logic
+      // Square/Circle Drop
       const { x, y } = pixelToSquare(obj.left, obj.top, 0, 0);
       const oldX = obj.data.x;
       const oldY = obj.data.y;
