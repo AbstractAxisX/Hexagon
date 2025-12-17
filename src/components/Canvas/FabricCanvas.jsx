@@ -3,6 +3,7 @@ import { fabric } from 'fabric';
 import useAppStore from '../../store/useAppStore';
 import { TileFactory } from './TileFactory';
 import { hexToPixel, pixelToHex, getNeighbors, HEX_MATH } from '../../utils/hexMath';
+import { squareToPixel, pixelToSquare, getSquareNeighbors, SQUARE_MATH } from '../../utils/squareMath';
 import { Logger } from '../../utils/logger';
 
 const COMPONENT = 'FabricCanvas';
@@ -12,6 +13,7 @@ const FabricCanvas = () => {
   const fabricRef = useRef(null);
   const containerRef = useRef(null);
 
+  // اتصال به استور
   const tiles = useAppStore(state => state.tiles);
   const wallColor = useAppStore(state => state.wallColor);
   const moveOrSwapTile = useAppStore(state => state.moveOrSwapTile);
@@ -22,13 +24,12 @@ const FabricCanvas = () => {
   const globalSettings = useAppStore(state => state.globalSettings);
 
   const ghostObjects = useRef([]);
-  const prevTileCountRef = useRef(0); // ✅ برای تشخیص کاشی جدید
 
   // ==================== 1. SETUP ====================
   useEffect(() => {
     if (!canvasEl.current) return;
 
-    Logger.info(COMPONENT, 'Initializing Canvas...');
+    Logger.info(COMPONENT, 'Initializing...');
 
     const canvas = new fabric.Canvas(canvasEl.current, {
       selection: false,
@@ -49,8 +50,7 @@ const FabricCanvas = () => {
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    // ==================== EVENT LISTENERS ====================
-
+    // هندل کردن حرکت آبجکت‌ها
     canvas.on('object:moving', (e) => {
       const obj = e.target;
       obj.set({ opacity: 0.5 });
@@ -61,19 +61,23 @@ const FabricCanvas = () => {
       showGhostSlots(obj);
     });
 
+    // هندل کردن رها کردن آبجکت
     canvas.on('object:modified', (e) => {
       const obj = e.target;
       clearGhosts();
       obj.set({ opacity: 1 });
+
       handleDropLogic(obj, canvas);
     });
 
+    // کلیک روی آبجکت
     canvas.on('mouse:down', (e) => {
       if (e.target && e.target.data?.id) {
         setFocus(e.target.data.id);
       }
     });
 
+    // دبل کلیک روی بک‌گراند
     canvas.on('mouse:dblclick', (e) => {
       if (!e.target) {
         setOverview();
@@ -84,302 +88,223 @@ const FabricCanvas = () => {
       window.removeEventListener('resize', handleResize);
       canvas.dispose();
       fabricRef.current = null;
-      Logger.info(COMPONENT, 'Canvas disposed');
     };
   }, []);
 
-  // ==================== 3. SYNC TILES ====================
+  // ==================== 2. SYNC TILES ====================
   useEffect(() => {
     if (!fabricRef.current) return;
     const canvas = fabricRef.current;
 
-    Logger.info(COMPONENT, 'Syncing tiles...', { count: tiles.length });
-
-    // پاک کردن کاشی‌های قبلی
+    // پاک کردن همه چیز جز گوست‌ها
     canvas.getObjects().forEach(o => {
-      if (o.data?.type !== 'ghost') canvas.remove(o);
+      if (o.type !== 'ghost') canvas.remove(o);
     });
 
+    canvas.clear();
     canvas.setBackgroundColor(wallColor, () => {});
 
-    // رندر کاشی‌ها
+    // رسم مجدد کاشی‌ها
     tiles.forEach(tileData => {
-      const shape = tileData.shape || globalSettings.shape || 'hex';
+      let pos;
+      
+      // محاسبه پوزیشن بر اساس نوع شکل
+      if (tileData.shape === 'hex') {
+        pos = hexToPixel(tileData.q, tileData.r, 0, 0);
+      } else {
+        // برای مربع و دایره
+        pos = squareToPixel(tileData.x, tileData.y, 0, 0);
+      }
 
       const tileObj = TileFactory.create(
         tileData,
-        { centerX: 0, centerY: 0 },
-        shape
+        pos,
+        tileData.shape
       );
-
-      if (tileObj) {
-        canvas.add(tileObj);
-      } else {
-        Logger.error(COMPONENT, 'Failed to create tile', tileData);
-      }
+      canvas.add(tileObj);
     });
 
-    canvas.requestRenderAll();
-
-    // ✅ فقط اگر کاشی جدید اضافه شده، فوکوس کن
-    const currentCount = tiles.length;
-    const previousCount = prevTileCountRef.current;
-
-    if (currentCount > previousCount && tiles.length > 0) {
-      setTimeout(() => {
-        const lastTile = tiles[tiles.length - 1];
-        Logger.info(COMPONENT, '🆕 New tile added, focusing...', { id: lastTile.id });
-        setFocus(lastTile.id);
-      }, 150);
-    } else if (currentCount === previousCount && tiles.length > 0) {
-      // ✅ اگر فقط جابجایی بوده (نه اضافه شدن)، دوربین رو آپدیت کن بدون تاخیر
-      updateCamera();
-    }
-
-    prevTileCountRef.current = currentCount;
+    setTimeout(() => updateCamera(), 50);
 
   }, [tiles, wallColor, globalSettings.shape]);
 
-// ==================== 4. CAMERA CONTROLLER ====================
+  // ==================== 3. CAMERA ====================
+  useEffect(() => {
+    updateCamera();
+  }, [viewMode, focusedTileId]);
 
-// ========== تست دیباگ ==========
-useEffect(() => {
-  if (!fabricRef.current) return;
-  
-  console.log('🧪 DEBUG TEST:');
-  console.log('📦 Total tiles in store:', tiles.length);
-  console.log('🎨 Objects on canvas:', fabricRef.current.getObjects().length);
-  
-  fabricRef.current.getObjects().forEach((obj, index) => {
-    if (obj.data?.id) {
-      const bounds = obj.getBoundingRect();
-      console.log(`🔹 Tile #${index}:`, {
-        id: obj.data.id,
-        left: obj.left,
-        top: obj.top,
-        width: obj.width,
-        height: obj.height,
-        bounds: bounds
-      });
-    }
-  });
-  
-}, [tiles]);
+  const updateCamera = () => {
+    if (!fabricRef.current) return;
+    const canvas = fabricRef.current;
 
-useEffect(() => {
-  if (!fabricRef.current) return;
-
-
-  
-  updateCamera();
-}, [viewMode, focusedTileId]);
-
-const updateCamera = () => {
-  if (!fabricRef.current) return;
-  const canvas = fabricRef.current;
-
-  console.log('🎥 ===== CAMERA DEBUG START =====');
-  console.log('📦 Tiles count:', tiles.length);
-  console.log('🎯 View Mode:', viewMode);
-  console.log('🔍 Focused ID:', focusedTileId);
-
-  // ✅ چک کن همه کاشی‌ها کجا هستن
-  const allObjects = canvas.getObjects().filter(o => o.data?.id);
-  console.log('🟢 Canvas Objects:', allObjects.map(o => ({
-    id: o.data.id,
-    left: o.left,
-    top: o.top,
-    width: o.width,
-    height: o.height,
-    bounds: o.getBoundingRect()
-  })));
-
-  if (tiles.length === 0) {
-    canvas.setViewportTransform([1, 0, 0, 1, canvas.width / 2, canvas.height / 2]);
-    canvas.requestRenderAll();
-    return;
-  }
-
-  let targetBounds = null;
-
-  // حالت Focus
-  if (viewMode === 'focused' && focusedTileId) {
-    const targetObj = canvas.getObjects().find(o => o.data?.id === focusedTileId);
-    
-    console.log('🎯 Looking for tile:', focusedTileId);
-    console.log('🎯 Found object:', targetObj ? 'YES' : 'NO');
-    
-    if (targetObj) {
-      const bounds = targetObj.getBoundingRect();
-      console.log('📐 Object bounds:', bounds);
-      
-      const padding = 100;
-      targetBounds = {
-        left: bounds.left - padding,
-        top: bounds.top - padding,
-        width: bounds.width + (padding * 2),
-        height: bounds.height + (padding * 2)
-      };
-      
-      console.log('🎯 Target bounds (with padding):', targetBounds);
-      Logger.info(COMPONENT, '🎯 Focusing', { id: focusedTileId });
-    } else {
-      console.error('❌ Object not found on canvas!');
-    }
-  }
-
-  // حالت Overview
-  if (!targetBounds) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    let hasTiles = false;
-
-    canvas.getObjects().forEach(obj => {
-      if (obj.data?.id) {
-        hasTiles = true;
-        const bounds = obj.getBoundingRect();
-        console.log('📏 Tile bounds:', { id: obj.data.id, bounds });
-        
-        minX = Math.min(minX, bounds.left);
-        minY = Math.min(minY, bounds.top);
-        maxX = Math.max(maxX, bounds.left + bounds.width);
-        maxY = Math.max(maxY, bounds.top + bounds.height);
-      }
-    });
-
-    console.log('🌍 Overview bounds:', { minX, minY, maxX, maxY });
-
-    if (hasTiles) {
-      const padding = 150;
-      targetBounds = {
-        left: minX - padding,
-        top: minY - padding,
-        width: (maxX - minX) + (padding * 2),
-        height: (maxY - minY) + (padding * 2)
-      };
-      console.log('🌍 Final overview bounds:', targetBounds);
-      Logger.info(COMPONENT, '🌍 Overview', { tiles: tiles.length });
-    }
-  }
-
-  if (targetBounds) {
-    const scaleX = canvas.width / targetBounds.width;
-    const scaleY = canvas.height / targetBounds.height;
-    const zoom = Math.min(scaleX, scaleY);
-    const finalZoom = Math.min(Math.max(zoom, 0.5), 2.5);
-
-    const centerX = targetBounds.left + targetBounds.width / 2;
-    const centerY = targetBounds.top + targetBounds.height / 2;
-
-    const finalPanX = (canvas.width / 2) - (centerX * finalZoom);
-    const finalPanY = (canvas.height / 2) - (centerY * finalZoom);
-
-    console.log('📊 Camera calculations:', {
-      canvasSize: { w: canvas.width, h: canvas.height },
-      zoom: finalZoom,
-      center: { x: centerX, y: centerY },
-      pan: { x: finalPanX, y: finalPanY }
-    });
-
-    const currentZoom = canvas.getZoom();
-    const currentPanX = canvas.viewportTransform[4];
-    const currentPanY = canvas.viewportTransform[5];
-
-    console.log('📍 Current transform:', {
-      zoom: currentZoom,
-      pan: { x: currentPanX, y: currentPanY }
-    });
-
-    console.log('🎥 ===== CAMERA DEBUG END =====\n');
-
-    // ✅ چک: اگر تغییرات کوچک است، بدون انیمیشن
-    const zoomDiff = Math.abs(finalZoom - currentZoom);
-    const panDiffX = Math.abs(finalPanX - currentPanX);
-    const panDiffY = Math.abs(finalPanY - currentPanY);
-
-    if (zoomDiff < 0.01 && panDiffX < 5 && panDiffY < 5) {
-      canvas.setZoom(finalZoom);
-      canvas.viewportTransform[4] = finalPanX;
-      canvas.viewportTransform[5] = finalPanY;
+    if (tiles.length === 0) {
+      canvas.setViewportTransform([1, 0, 0, 1, canvas.width / 2, canvas.height / 2]);
       canvas.requestRenderAll();
       return;
     }
 
-    // انیمیشن
-    fabric.util.animate({
-      startValue: 0,
-      endValue: 1,
-      duration: 500,
-      onChange: function(value) {
-        const newZoom = currentZoom + (finalZoom - currentZoom) * value;
-        const newPanX = currentPanX + (finalPanX - currentPanX) * value;
-        const newPanY = currentPanY + (finalPanY - currentPanY) * value;
+    let targetBounds = null;
 
-        canvas.setZoom(newZoom);
-        canvas.viewportTransform[4] = newPanX;
-        canvas.viewportTransform[5] = newPanY;
-        canvas.requestRenderAll();
-      },
-      onComplete: function() {
-        canvas.forEachObject(obj => obj.setCoords());
-        canvas.requestRenderAll();
-      },
-      easing: fabric.util.ease.easeInOutCubic
-    });
-  }
-};
+    if (viewMode === 'focused' && focusedTileId) {
+      const targetObj = canvas.getObjects().find(o => o.data?.id === focusedTileId);
+      if (targetObj) {
+        const padding = 50;
+        targetBounds = {
+          left: targetObj.left - padding,
+          top: targetObj.top - padding,
+          width: targetObj.width + (padding * 2),
+          height: targetObj.height + (padding * 2)
+        };
+      }
+    }
 
+    if (!targetBounds) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let hasTiles = false;
 
-  // ==================== 5. GHOST & DROP LOGIC ====================
+      canvas.getObjects().forEach(obj => {
+        if (obj.data?.id) {
+          hasTiles = true;
+          if (obj.left < minX) minX = obj.left;
+          if (obj.top < minY) minY = obj.top;
+          if (obj.left + obj.width > maxX) maxX = obj.left + obj.width;
+          if (obj.top + obj.height > maxY) maxY = obj.top + obj.height;
+        }
+      });
+
+      if (hasTiles) {
+        const padding = 150;
+        targetBounds = {
+          left: minX - padding,
+          top: minY - padding,
+          width: (maxX - minX) + (padding * 2),
+          height: (maxY - minY) + (padding * 2)
+        };
+      }
+    }
+
+    if (targetBounds) {
+      const scaleX = canvas.width / targetBounds.width;
+      const scaleY = canvas.height / targetBounds.height;
+      const zoom = Math.min(scaleX, scaleY);
+      const finalZoom = Math.min(zoom, 2.5);
+
+      const centerX = targetBounds.left + targetBounds.width / 2;
+      const centerY = targetBounds.top + targetBounds.height / 2;
+
+      const finalPanX = (canvas.width / 2) - (centerX * finalZoom);
+      const finalPanY = (canvas.height / 2) - (centerY * finalZoom);
+
+      const currentZoom = canvas.getZoom();
+      const currentPanX = canvas.viewportTransform[4];
+      const currentPanY = canvas.viewportTransform[5];
+
+      fabric.util.animate({
+        startValue: 0,
+        endValue: 1,
+        duration: 400,
+        onChange: function(value) {
+          const newZoom = currentZoom + (finalZoom - currentZoom) * value;
+          const newPanX = currentPanX + (finalPanX - currentPanX) * value;
+          const newPanY = currentPanY + (finalPanY - currentPanY) * value;
+
+          canvas.setZoom(newZoom);
+          canvas.viewportTransform[4] = newPanX;
+          canvas.viewportTransform[5] = newPanY;
+          canvas.requestRenderAll();
+        },
+        onComplete: function() {
+          canvas.setCoords();
+        },
+        easing: fabric.util.ease.easeOutQuad
+      });
+    }
+  };
+
+  // ==================== 4. GHOST & DROP LOGIC ====================
 
   const showGhostSlots = (draggedObj) => {
     const canvas = fabricRef.current;
     clearGhosts();
 
     const allTiles = useAppStore.getState().tiles;
-    const existingCoords = new Set(allTiles.map(t => `${t.q},${t.r}`));
-    const validGhostCoords = new Set();
+    const draggedShape = draggedObj.data.shape;
+    
+    let existingCoords, validGhostCoords;
 
-    allTiles.forEach(tile => {
-      if (tile.id === draggedObj.data.id) return;
+    // --- منطق Hexagon ---
+    if (draggedShape === 'hex') {
+      existingCoords = new Set(allTiles.filter(t => t.shape === 'hex').map(t => `${t.q},${t.r}`));
+      validGhostCoords = new Set();
 
-      const neighbors = getNeighbors(tile.q, tile.r);
-      neighbors.forEach(n => {
-        const key = `${n.q},${n.r}`;
-        if (!existingCoords.has(key)) {
-          validGhostCoords.add(key);
-        }
+      allTiles.filter(t => t.shape === 'hex').forEach(tile => {
+        if (tile.id === draggedObj.data.id) return;
+
+        const neighbors = getNeighbors(tile.q, tile.r);
+        neighbors.forEach(n => {
+          const key = `${n.q},${n.r}`;
+          if (!existingCoords.has(key)) {
+            validGhostCoords.add(key);
+          }
+        });
       });
-    });
 
-    const shape = globalSettings.shape || 'hex';
+      validGhostCoords.forEach(key => {
+        const [q, r] = key.split(',').map(Number);
+        const pos = hexToPixel(q, r, 0, 0);
 
-    validGhostCoords.forEach(key => {
-      const [q, r] = key.split(',').map(Number);
-      const pos = hexToPixel(q, r, 0, 0);
+        const ghost = TileFactory.createGhost({ q, r }, pos, 'hex');
+        const dist = Math.hypot(draggedObj.left - pos.x, draggedObj.top - pos.y);
 
-      const ghost = TileFactory.createGhost({ q, r }, pos, shape);
-
-      const dist = Math.hypot(draggedObj.left - pos.x, draggedObj.top - pos.y);
-
-      if (dist < HEX_MATH.RADIUS * 0.8) {
-        ghost.set({ opacity: 0.8, scaleX: 1.05, scaleY: 1.05 });
-        if (ghost.item(0)) {
-          ghost.item(0).set({
-            stroke: '#4ade80',
-            strokeWidth: 3,
-            fill: 'rgba(74, 222, 128, 0.2)'
-          });
+        if (dist < HEX_MATH.RADIUS * 0.8) {
+          ghost.set({ opacity: 0.8, scaleX: 1.05, scaleY: 1.05 });
+          ghost.item(0).set({ stroke: '#4ade80', strokeWidth: 3, fill: 'rgba(74, 222, 128, 0.2)' });
+        } else {
+          ghost.set({ opacity: 0.4, scaleX: 1, scaleY: 1 });
         }
-      } else {
-        ghost.set({ opacity: 0.4, scaleX: 1, scaleY: 1 });
-      }
 
-      canvas.add(ghost);
-      canvas.sendToBack(ghost);
-      ghostObjects.current.push(ghost);
-    });
+        canvas.add(ghost);
+        canvas.sendToBack(ghost);
+        ghostObjects.current.push(ghost);
+      });
 
-    canvas.requestRenderAll();
+    } else {
+      // --- منطق Square/Circle ---
+      existingCoords = new Set(allTiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
+      validGhostCoords = new Set();
+
+      allTiles.filter(t => t.shape !== 'hex').forEach(tile => {
+        if (tile.id === draggedObj.data.id) return;
+
+        const neighbors = getSquareNeighbors(tile.x, tile.y);
+        neighbors.forEach(n => {
+          const key = `${n.x},${n.y}`;
+          if (!existingCoords.has(key)) {
+            validGhostCoords.add(key);
+          }
+        });
+      });
+
+      validGhostCoords.forEach(key => {
+        const [x, y] = key.split(',').map(Number);
+        const pos = squareToPixel(x, y, 0, 0);
+
+        // اینجا draggedShape مهمه چون ممکنه دایره باشه یا مربع
+        const ghost = TileFactory.createGhost({ x, y }, pos, draggedShape);
+        const dist = Math.hypot(draggedObj.left - pos.x, draggedObj.top - pos.y);
+
+        if (dist < SQUARE_MATH.SIZE * 0.8) {
+          ghost.set({ opacity: 0.8, scaleX: 1.05, scaleY: 1.05 });
+          ghost.item(0).set({ stroke: '#4ade80', strokeWidth: 3, fill: 'rgba(74, 222, 128, 0.2)' });
+        } else {
+          ghost.set({ opacity: 0.4, scaleX: 1, scaleY: 1 });
+        }
+
+        canvas.add(ghost);
+        canvas.sendToBack(ghost);
+        ghostObjects.current.push(ghost);
+      });
+    }
   };
 
   const clearGhosts = () => {
@@ -390,27 +315,63 @@ const updateCamera = () => {
   };
 
   const handleDropLogic = (obj, canvas) => {
-    const { q, r } = pixelToHex(obj.left, obj.top, 0, 0);
-    const { id, q: oldQ, r: oldR } = obj.data;
-
     const allTiles = useAppStore.getState().tiles;
-    const targetTile = allTiles.find(t => t.q === q && t.r === r && t.id !== id);
+    const { id, shape } = obj.data;
+    
+    let targetCoord, oldCoord, targetTile, hasNeighbor;
 
-    const hasNeighbor = allTiles.some(t => {
-      if (t.id === id) return false;
-      const neighbors = getNeighbors(t.q, t.r);
-      return neighbors.some(n => n.q === q && n.r === r);
-    });
+    if (shape === 'hex') {
+      // Hexagonal Drop Logic
+      const { q, r } = pixelToHex(obj.left, obj.top, 0, 0);
+      const oldQ = obj.data.q;
+      const oldR = obj.data.r;
 
-    if (targetTile) {
-      moveOrSwapTile(id, q, r);
-      Logger.success(COMPONENT, '🔄 Swapped', { from: `${oldQ},${oldR}`, to: `${q},${r}` });
-    } else if (hasNeighbor) {
-      moveOrSwapTile(id, q, r);
-      Logger.success(COMPONENT, '✅ Moved', { to: `${q},${r}` });
+      targetCoord = { q, r };
+      oldCoord = { q: oldQ, r: oldR };
+
+      targetTile = allTiles.find(t => t.shape === 'hex' && t.q === q && t.r === r && t.id !== id);
+
+      hasNeighbor = allTiles.some(t => {
+        if (t.id === id || t.shape !== 'hex') return false;
+        const neighbors = getNeighbors(t.q, t.r);
+        return neighbors.some(n => n.q === q && n.r === r);
+      });
+
     } else {
-      Logger.warn(COMPONENT, '❌ Invalid drop, reverting...');
-      const oldPos = hexToPixel(oldQ, oldR, 0, 0);
+      // Square/Circle Drop Logic
+      const { x, y } = pixelToSquare(obj.left, obj.top, 0, 0);
+      const oldX = obj.data.x;
+      const oldY = obj.data.y;
+
+      targetCoord = { x, y };
+      oldCoord = { x: oldX, y: oldY };
+
+      targetTile = allTiles.find(t => t.shape !== 'hex' && t.x === x && t.y === y && t.id !== id);
+
+      hasNeighbor = allTiles.some(t => {
+        if (t.id === id || t.shape === 'hex') return false;
+        const neighbors = getSquareNeighbors(t.x, t.y);
+        return neighbors.some(n => n.x === x && n.y === y);
+      });
+    }
+
+    // تصمیم‌گیری نهایی
+    if (targetTile) {
+      moveOrSwapTile(id, targetCoord);
+      Logger.success(COMPONENT, 'Swapped Tiles', { from: oldCoord, to: targetCoord });
+    } else if (hasNeighbor) {
+      moveOrSwapTile(id, targetCoord);
+      Logger.success(COMPONENT, 'Moved Tile', { to: targetCoord });
+    } else {
+      Logger.warn(COMPONENT, 'Invalid Drop -> Reverting');
+      
+      let oldPos;
+      if (shape === 'hex') {
+        oldPos = hexToPixel(oldCoord.q, oldCoord.r, 0, 0);
+      } else {
+        oldPos = squareToPixel(oldCoord.x, oldCoord.y, 0, 0);
+      }
+
       obj.animate({
         left: oldPos.x,
         top: oldPos.y,

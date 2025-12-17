@@ -1,9 +1,6 @@
-// استراتژی: همه کاشی‌ها دارای {q, r} و {x, y} هستن
-// بسته به globalSettings.shape، از یکی استفاده می‌شه
-
 import { create } from 'zustand';
 import { getNeighbors } from '../utils/hexMath';
-import { getSquareNeighbors, squareDistance } from '../utils/squareMath';
+import { getSquareNeighbors } from '../utils/squareMath';
 
 const useAppStore = create((set, get) => ({
   globalSettings: {
@@ -163,7 +160,11 @@ const useAppStore = create((set, get) => ({
     };
 
     console.log(`✅ کاشی جدید اضافه شد:`, targetCoord);
-    set(state => ({ tiles: [...state.tiles, newTile] }));
+    set(state => ({ 
+      tiles: [...state.tiles, newTile],
+      focusedTileId: newTile.id, // اضافه شده برای هماهنگی با درخواست قبلی شما جهت فوکوس خودکار
+      viewMode: 'focused'
+    }));
   },
 
   removeTile: (id) => {
@@ -266,8 +267,11 @@ const useAppStore = create((set, get) => ({
   },
 
   addRingAround: () => {
-    const currentTiles = get().tiles;
-    const shape = get().globalSettings.shape;
+    const state = get();
+    const currentTiles = state.tiles;
+    // فرض بر این است که وقتی رینگ اضافه می‌شود همه کاشی‌ها یک شکل هستند
+    // یا بر اساس تنظیمات گلوبال تصمیم می‌گیریم
+    const shape = state.globalSettings.shape;
     
     if (shape === 'hex') {
       const existingCoords = new Set(currentTiles.filter(t => t.shape === 'hex').map(t => `${t.q},${t.r}`));
@@ -294,6 +298,7 @@ const useAppStore = create((set, get) => ({
       });
 
       set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+
     } else {
       const existingCoords = new Set(currentTiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
       const candidates = new Set();

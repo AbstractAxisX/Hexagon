@@ -1,9 +1,3 @@
-// src/utils/squareMath.js
-
-/**
- * ریاضیات Grid مربعی (برای مربع و دایره)
- */
-
 export const SQUARE_MATH = {
   SIZE: 120, // سایز هر خانه
 };
