@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+
 body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* جلوگیری از اسکرول خوردن صفحه هنگام کار با بوم */
-  background-color: #f3f4f6;
+  background-color: #f3f4f6 !important;
 }

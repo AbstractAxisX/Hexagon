@@ -1,5 +1,9 @@
+// استراتژی: همه کاشی‌ها دارای {q, r} و {x, y} هستن
+// بسته به globalSettings.shape، از یکی استفاده می‌شه
+
 import { create } from 'zustand';
 import { getNeighbors } from '../utils/hexMath';
+import { getSquareNeighbors, squareDistance } from '../utils/squareMath';
 
 const useAppStore = create((set, get) => ({
   globalSettings: {
@@ -25,83 +29,140 @@ const useAppStore = create((set, get) => ({
     }));
   },
 
-  // ✅ FIX: کلیک من حروم نمیشه! تا جای سالم پیدا نکنه ول نمی‌کنه
-  addTile: (q, r) => {
+  // ✅ الگوریتم هوشمند: بسته به شکل، از Grid مناسب استفاده کن
+  addTile: (coord1, coord2) => {
     const state = get();
-    let targetQ = q;
-    let targetR = r;
+    const shape = state.globalSettings.shape;
+    
+    let targetCoord = {};
 
-    // اگر مختصات نداریم، الگوریتم خودش پیدا می‌کنه
-    if (targetQ === undefined || targetR === undefined) {
-      const emptySpot = findClosestEmptySpot(state.tiles);
-      targetQ = emptySpot.q;
-      targetR = emptySpot.r;
-    }
+    // تشخیص Grid System
+    if (shape === 'hex') {
+      // Hexagonal Grid
+      let targetQ = coord1;
+      let targetR = coord2;
 
-    // ✅ اگر این جا اشغاله، جای دیگه‌ای پیدا کن (تا 50 تلاش)
-    let attempts = 0;
-    const maxAttempts = 50;
-    const occupied = new Set(state.tiles.map(t => `${t.q},${t.r}`));
+      if (targetQ === undefined || targetR === undefined) {
+        const emptySpot = findClosestEmptySpotHex(state.tiles);
+        targetQ = emptySpot.q;
+        targetR = emptySpot.r;
+      }
 
-    while (occupied.has(`${targetQ},${targetR}`) && attempts < maxAttempts) {
-      console.warn(`⚠️ (${targetQ}, ${targetR}) اشغاله! دارم جای دیگه می‌گردم...`);
-      
-      // بگرد دور همسایه‌ها تا جای خالی پیدا کنی
-      const neighbors = getNeighbors(targetQ, targetR);
-      let found = false;
+      let attempts = 0;
+      const maxAttempts = 50;
+      const occupied = new Set(state.tiles.filter(t => t.shape === 'hex').map(t => `${t.q},${t.r}`));
 
-      for (const n of neighbors) {
-        const key = `${n.q},${n.r}`;
-        if (!occupied.has(key)) {
-          targetQ = n.q;
-          targetR = n.r;
-          found = true;
-          break;
+      while (occupied.has(`${targetQ},${targetR}`) && attempts < maxAttempts) {
+        const neighbors = getNeighbors(targetQ, targetR);
+        let found = false;
+
+        for (const n of neighbors) {
+          const key = `${n.q},${n.r}`;
+          if (!occupied.has(key)) {
+            targetQ = n.q;
+            targetR = n.r;
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          const fallback = findClosestEmptySpotHex(state.tiles.filter(t => t.shape === 'hex'));
+          targetQ = fallback.q;
+          targetR = fallback.r;
+        }
+
+        attempts++;
+      }
+
+      if (occupied.has(`${targetQ},${targetR}`)) {
+        console.error(`❌ بعد از ${maxAttempts} تلاش، جای خالی پیدا نشد!`);
+        return;
+      }
+
+      if (state.tiles.filter(t => t.shape === 'hex').length > 0) {
+        const hasValidNeighbor = state.tiles.some(tile => {
+          if (tile.shape !== 'hex') return false;
+          const neighbors = getNeighbors(tile.q, tile.r);
+          return neighbors.some(n => n.q === targetQ && n.r === targetR);
+        });
+
+        if (!hasValidNeighbor) {
+          const validSpot = findClosestEmptySpotHex(state.tiles.filter(t => t.shape === 'hex'));
+          targetQ = validSpot.q;
+          targetR = validSpot.r;
         }
       }
 
-      // اگر همسایه‌ها پرن، از الگوریتم اصلی کمک بگیر
-      if (!found) {
-        const fallback = findClosestEmptySpot(state.tiles);
-        targetQ = fallback.q;
-        targetR = fallback.r;
+      targetCoord = { q: targetQ, r: targetR, x: null, y: null, shape: 'hex' };
+
+    } else {
+      // Square Grid (برای مربع و دایره)
+      let targetX = coord1;
+      let targetY = coord2;
+
+      if (targetX === undefined || targetY === undefined) {
+        const emptySpot = findClosestEmptySpotSquare(state.tiles);
+        targetX = emptySpot.x;
+        targetY = emptySpot.y;
       }
 
-      attempts++;
-    }
+      let attempts = 0;
+      const maxAttempts = 50;
+      const occupied = new Set(state.tiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
 
-    // ✅ چک نهایی: آیا بازم اشغاله؟
-    if (occupied.has(`${targetQ},${targetR}`)) {
-      console.error(`❌ بعد از ${maxAttempts} تلاش، جای خالی پیدا نشد!`);
-      return;
-    }
+      while (occupied.has(`${targetX},${targetY}`) && attempts < maxAttempts) {
+        const neighbors = getSquareNeighbors(targetX, targetY);
+        let found = false;
 
-    // ✅ چک قانون: آیا چسبیده به کاشی موجود هست؟
-    if (state.tiles.length > 0) {
-      const hasValidNeighbor = state.tiles.some(tile => {
-        const neighbors = getNeighbors(tile.q, tile.r);
-        return neighbors.some(n => n.q === targetQ && n.r === targetR);
-      });
+        for (const n of neighbors) {
+          const key = `${n.x},${n.y}`;
+          if (!occupied.has(key)) {
+            targetX = n.x;
+            targetY = n.y;
+            found = true;
+            break;
+          }
+        }
 
-      if (!hasValidNeighbor) {
-        console.error(`❌ (${targetQ}, ${targetR}) چسبیده به هیچ کاشی نیست! رد شد.`);
-        // تلاش برای پیدا کردن جای معتبر
-        const validSpot = findClosestEmptySpot(state.tiles);
-        targetQ = validSpot.q;
-        targetR = validSpot.r;
+        if (!found) {
+          const fallback = findClosestEmptySpotSquare(state.tiles.filter(t => t.shape !== 'hex'));
+          targetX = fallback.x;
+          targetY = fallback.y;
+        }
+
+        attempts++;
       }
+
+      if (occupied.has(`${targetX},${targetY}`)) {
+        console.error(`❌ بعد از ${maxAttempts} تلاش، جای خالی پیدا نشد!`);
+        return;
+      }
+
+      if (state.tiles.filter(t => t.shape !== 'hex').length > 0) {
+        const hasValidNeighbor = state.tiles.some(tile => {
+          if (tile.shape === 'hex') return false;
+          const neighbors = getSquareNeighbors(tile.x, tile.y);
+          return neighbors.some(n => n.x === targetX && n.y === targetY);
+        });
+
+        if (!hasValidNeighbor) {
+          const validSpot = findClosestEmptySpotSquare(state.tiles.filter(t => t.shape !== 'hex'));
+          targetX = validSpot.x;
+          targetY = validSpot.y;
+        }
+      }
+
+      targetCoord = { q: null, r: null, x: targetX, y: targetY, shape };
     }
 
-    
-    // ✅ همه چیز OK - اضافه کن!
     const newTile = {
       id: crypto.randomUUID(),
-      q: targetQ,
-      r: targetR,
+      ...targetCoord,
       content: { type: 'empty', data: null }
     };
 
-    console.log(`✅ کاشی جدید در (${targetQ}, ${targetR}) اضافه شد`);
+    console.log(`✅ کاشی جدید اضافه شد:`, targetCoord);
     set(state => ({ tiles: [...state.tiles, newTile] }));
   },
 
@@ -130,6 +191,9 @@ const useAppStore = create((set, get) => ({
       tiles: state.tiles.map(t => ({
         q: t.q,
         r: t.r,
+        x: t.x,
+        y: t.y,
+        shape: t.shape,
         type: t.content.type,
         content: t.content.data
       }))
@@ -152,27 +216,49 @@ const useAppStore = create((set, get) => ({
     }
   },
 
-  moveOrSwapTile: (draggedId, targetQ, targetR) => {
+  moveOrSwapTile: (draggedId, targetCoord) => {
     set(state => {
       const draggedTile = state.tiles.find(t => t.id === draggedId);
       if (!draggedTile) return state;
 
-      const targetTile = state.tiles.find(t => t.q === targetQ && t.r === targetR);
+      // پیدا کردن کاشی مقصد با توجه به Grid System
+      let targetTile;
+      if (draggedTile.shape === 'hex') {
+        targetTile = state.tiles.find(t => 
+          t.shape === 'hex' && t.q === targetCoord.q && t.r === targetCoord.r && t.id !== draggedId
+        );
+      } else {
+        targetTile = state.tiles.find(t => 
+          t.shape !== 'hex' && t.x === targetCoord.x && t.y === targetCoord.y && t.id !== draggedId
+        );
+      }
 
       if (targetTile) {
         // SWAP
         return {
           tiles: state.tiles.map(t => {
-            if (t.id === draggedId) return { ...t, q: targetQ, r: targetR };
-            if (t.id === targetTile.id) return { ...t, q: draggedTile.q, r: draggedTile.r };
+            if (t.id === draggedId) {
+              return draggedTile.shape === 'hex' 
+                ? { ...t, q: targetCoord.q, r: targetCoord.r }
+                : { ...t, x: targetCoord.x, y: targetCoord.y };
+            }
+            if (t.id === targetTile.id) {
+              return draggedTile.shape === 'hex'
+                ? { ...t, q: draggedTile.q, r: draggedTile.r }
+                : { ...t, x: draggedTile.x, y: draggedTile.y };
+            }
             return t;
           })
         };
       } else {
-        // MOVE (Canvas قبلاً چک کرده که جای معتبر هست)
+        // MOVE
         return {
           tiles: state.tiles.map(t =>
-            t.id === draggedId ? { ...t, q: targetQ, r: targetR } : t
+            t.id === draggedId 
+              ? (draggedTile.shape === 'hex'
+                  ? { ...t, q: targetCoord.q, r: targetCoord.r }
+                  : { ...t, x: targetCoord.x, y: targetCoord.y })
+              : t
           )
         };
       }
@@ -181,64 +267,86 @@ const useAppStore = create((set, get) => ({
 
   addRingAround: () => {
     const currentTiles = get().tiles;
-    const existingCoords = new Set(currentTiles.map(t => `${t.q},${t.r}`));
-    const candidates = new Set();
+    const shape = get().globalSettings.shape;
+    
+    if (shape === 'hex') {
+      const existingCoords = new Set(currentTiles.filter(t => t.shape === 'hex').map(t => `${t.q},${t.r}`));
+      const candidates = new Set();
 
-    currentTiles.forEach(tile => {
-      const neighbors = getNeighbors(tile.q, tile.r);
-      neighbors.forEach(n => {
-        const key = `${n.q},${n.r}`;
-        if (!existingCoords.has(key)) {
-          candidates.add(key);
-        }
+      currentTiles.filter(t => t.shape === 'hex').forEach(tile => {
+        const neighbors = getNeighbors(tile.q, tile.r);
+        neighbors.forEach(n => {
+          const key = `${n.q},${n.r}`;
+          if (!existingCoords.has(key)) {
+            candidates.add(key);
+          }
+        });
       });
-    });
 
-    const newTiles = Array.from(candidates).map(key => {
-      const [q, r] = key.split(',').map(Number);
-      return {
-        id: crypto.randomUUID(),
-        q, r,
-        content: { type: 'empty' }
-      };
-    });
+      const newTiles = Array.from(candidates).map(key => {
+        const [q, r] = key.split(',').map(Number);
+        return {
+          id: crypto.randomUUID(),
+          q, r, x: null, y: null,
+          shape: 'hex',
+          content: { type: 'empty' }
+        };
+      });
 
-    set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+      set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+    } else {
+      const existingCoords = new Set(currentTiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
+      const candidates = new Set();
+
+      currentTiles.filter(t => t.shape !== 'hex').forEach(tile => {
+        const neighbors = getSquareNeighbors(tile.x, tile.y);
+        neighbors.forEach(n => {
+          const key = `${n.x},${n.y}`;
+          if (!existingCoords.has(key)) {
+            candidates.add(key);
+          }
+        });
+      });
+
+      const newTiles = Array.from(candidates).map(key => {
+        const [x, y] = key.split(',').map(Number);
+        return {
+          id: crypto.randomUUID(),
+          q: null, r: null, x, y,
+          shape,
+          content: { type: 'empty' }
+        };
+      });
+
+      set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+    }
   },
 
   setFocus: (tileId) => set({ viewMode: 'focused', focusedTileId: tileId }),
   setOverview: () => set({ viewMode: 'overview', focusedTileId: null }),
 }));
 
-// ✅ الگوریتم هوشمند: فقط جاهای چسبیده رو برمی‌گردونه
-function findClosestEmptySpot(tiles) {
-  // اگه هیچی نیست، اولی باش
+// ==================== توابع کمکی ====================
+
+function findClosestEmptySpotHex(tiles) {
   if (tiles.length === 0) return { q: 0, r: 0 };
 
   const occupied = new Set(tiles.map(t => `${t.q},${t.r}`));
   const candidatesMap = new Map();
 
-  // ✅ فقط همسایه‌های خالی کاشی‌های موجود رو در نظر بگیر
   tiles.forEach(tile => {
     const neighbors = getNeighbors(tile.q, tile.r);
-    
     neighbors.forEach(n => {
       const key = `${n.q},${n.r}`;
-      
-      // اگه پره، رد کن
       if (occupied.has(key)) return;
 
-      // محاسبه فاصله تا مرکز
       const distToCenter = (Math.abs(n.q) + Math.abs(n.r) + Math.abs(n.q + n.r)) / 2;
-
-      // شمارش همسایه‌های پر (برای تراکم بیشتر)
       let occupiedNeighbors = 0;
       const subNeighbors = getNeighbors(n.q, n.r);
       subNeighbors.forEach(sn => {
         if (occupied.has(`${sn.q},${sn.r}`)) occupiedNeighbors++;
       });
 
-      // اگه تکراری نیست، اضافه کن
       if (!candidatesMap.has(key)) {
         candidatesMap.set(key, {
           q: n.q,
@@ -251,8 +359,6 @@ function findClosestEmptySpot(tiles) {
   });
 
   const finalCandidates = Array.from(candidatesMap.values());
-
-  // ✅ مرتب‌سازی: اول بیشترین تراکم، بعد نزدیک‌ترین مرکز
   finalCandidates.sort((a, b) => {
     if (b.neighbors !== a.neighbors) {
       return b.neighbors - a.neighbors;
@@ -260,10 +366,48 @@ function findClosestEmptySpot(tiles) {
     return a.dist - b.dist;
   });
 
-
-
-  
   return finalCandidates[0] || { q: 0, r: 0 };
+}
+
+function findClosestEmptySpotSquare(tiles) {
+  if (tiles.length === 0) return { x: 0, y: 0 };
+
+  const occupied = new Set(tiles.map(t => `${t.x},${t.y}`));
+  const candidatesMap = new Map();
+
+  tiles.forEach(tile => {
+    const neighbors = getSquareNeighbors(tile.x, tile.y);
+    neighbors.forEach(n => {
+      const key = `${n.x},${n.y}`;
+      if (occupied.has(key)) return;
+
+      const distToCenter = Math.abs(n.x) + Math.abs(n.y);
+      let occupiedNeighbors = 0;
+      const subNeighbors = getSquareNeighbors(n.x, n.y);
+      subNeighbors.forEach(sn => {
+        if (occupied.has(`${sn.x},${sn.y}`)) occupiedNeighbors++;
+      });
+
+      if (!candidatesMap.has(key)) {
+        candidatesMap.set(key, {
+          x: n.x,
+          y: n.y,
+          dist: distToCenter,
+          neighbors: occupiedNeighbors
+        });
+      }
+    });
+  });
+
+  const finalCandidates = Array.from(candidatesMap.values());
+  finalCandidates.sort((a, b) => {
+    if (b.neighbors !== a.neighbors) {
+      return b.neighbors - a.neighbors;
+    }
+    return a.dist - b.dist;
+  });
+
+  return finalCandidates[0] || { x: 0, y: 0 };
 }
 
 export default useAppStore;
