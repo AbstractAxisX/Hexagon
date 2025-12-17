@@ -8,19 +8,22 @@ export const TileFactory = {
   create(tileData, canvas) {
     const { q, r, id, color, shape } = tileData;
     
-    // محاسبه مختصات پیکسلی
-    const x = HEX_MATH.SIZE * (3/2 * q);
-    const y = HEX_MATH.SIZE * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
+    // ✅ اصلاح شده: استفاده از getEffectiveRadius به جای SIZE که وجود نداشت
+    // اگر می‌خواهید فاصله (Gap) رعایت شود از getEffectiveRadius استفاده کنید، وگرنه HEX_MATH.RADIUS
+    const size = HEX_MATH.getEffectiveRadius(); 
+
+    // محاسبه مختصات پیکسلی (برای چیدمان Flat-Topped)
+    const x = size * (3/2 * q);
+    const y = size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
 
     let fabricShape;
 
     if (shape === 'hex' || !shape) {
-      // ✅ نقاط Hexagon (بدون offset!)
       const points = [];
       for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i;
         points.push({
-          x: HEX_MATH.RADIUS * Math.cos(angle),
+          x: HEX_MATH.RADIUS * Math.cos(angle), // شعاع خود شکل (بدون فاصله)
           y: HEX_MATH.RADIUS * Math.sin(angle)
         });
       }
@@ -32,13 +35,13 @@ export const TileFactory = {
         selectable: true,
         hasControls: false,
         hasBorders: false,
-        originX: 'center',  // ✅ کلید اصلی!
-        originY: 'center',  // ✅ کلید اصلی!
+        originX: 'center',
+        originY: 'center',
       });
 
     } else if (shape === 'square') {
       fabricShape = new fabric.Rect({
-        width: HEX_MATH.RADIUS * 2,
+        width: HEX_MATH.RADIUS * 2,  // استفاده از RADIUS به جای SIZE
         height: HEX_MATH.RADIUS * 2,
         fill: color || '#3b82f6',
         stroke: '#ffffff',
@@ -52,7 +55,7 @@ export const TileFactory = {
 
     } else if (shape === 'circle') {
       fabricShape = new fabric.Circle({
-        radius: HEX_MATH.RADIUS,
+        radius: HEX_MATH.RADIUS, // استفاده از RADIUS به جای SIZE
         fill: color || '#3b82f6',
         stroke: '#ffffff',
         strokeWidth: 3,
@@ -69,7 +72,7 @@ export const TileFactory = {
       return null;
     }
 
-    // ✅ ست کردن موقعیت نهایی
+    // ✅ ست کردن موقعیت نهایی با مقادیر محاسبه شده صحیح
     fabricShape.set({
       left: x,
       top: y,
