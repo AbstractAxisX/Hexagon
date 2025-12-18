@@ -8,6 +8,9 @@ const useAppStore = create((set, get) => ({
     size: 'm',
     material: 'forex',
     corner: 'sharp',
+    editingTileId: null, // تایلی که الان داریم ویرایشش می‌کنیم
+  isModalOpen: false,
+  activeTab: 'upload',
   },
 
   tiles: [],
@@ -25,6 +28,43 @@ const useAppStore = create((set, get) => ({
       globalSettings: { ...state.globalSettings, [key]: value }
     }));
   },
+
+  setTileColor: (tileId, colorHex) => set(state => ({
+    tiles: state.tiles.map(t => 
+      t.id === tileId 
+        ? { 
+            ...t, 
+            content: { type: 'color', data: colorHex } // دیتا میشه کد رنگ
+          } 
+        : t
+    )
+  })),
+
+openEditModal: (tileId) => set({ 
+    editingTileId: tileId, 
+    isModalOpen: true,
+    viewMode: 'focused', // وقتی ادیت میکنیم زوم هم بمونه رو شکل
+    focusedTileId: tileId 
+  }),
+
+  closeEditModal: () => set({ 
+    isModalOpen: false, 
+    editingTileId: null 
+  }),
+
+
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  // تابعی برای ذخیره عکس در تایل (برای مرحله بعد آماده میکنیم)
+  setTileImage: (tileId, imageUrl) => set(state => ({
+    tiles: state.tiles.map(t => 
+      t.id === tileId 
+        ? { ...t, content: { ...t.content, type: 'image', data: imageUrl } } 
+        : t
+    )
+  })),
+
 
   // ✅ الگوریتم هوشمند: بسته به شکل، از Grid مناسب استفاده کن
   addTile: (coord1, coord2) => {

@@ -8,14 +8,14 @@ export const TileFactory = {
    * @param {object} pixelPos - موقعیت پیکسلی {x, y}
    * @param {string} shape - نوع شکل
    */
-  create: (tileData, pixelPos, shape) => {
+  create: (tileData, pixelPos, shape, canvas) => {
     switch (shape) {
       case 'hex':
-        return HexTile.create(tileData, pixelPos);
+        return HexTile.create(tileData, pixelPos, canvas);
       case 'square':
-        return SquareTile.create(tileData, pixelPos);
+        return SquareTile.create(tileData, pixelPos, canvas);
       case 'circle':
-        return CircleTile.create(tileData, pixelPos);
+        return CircleTile.create(tileData, pixelPos, canvas);
       default:
         console.error('❌ شکل نامعتبر در TileFactory:', shape);
         return null;

@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useAppStore from '../../store/useAppStore';
 import { TileFactory } from './TileFactory';
 import { hexToPixel } from '../../utils/hexMath';
 import { squareToPixel } from '../../utils/squareMath';
+
+// Components
+import TrashZone from '../UI/TrashZone'; // ✅ اضافه شد
 
 // Hooks
 import { useCanvasSetup } from './hooks/useCanvasSetup';
@@ -13,37 +16,37 @@ import { useCameraController } from './hooks/useCameraController';
 const FabricCanvas = () => {
   const canvasEl = useRef(null);
   const containerRef = useRef(null);
+  const trashRef = useRef(null); // ✅ رفرنس برای سطل زباله
 
-  // داده‌های مورد نیاز از استور
+  const [isTrashHovered, setTrashHovered] = useState(false); // ✅ استیت برای استایل دهی سطل
+
   const tiles = useAppStore(state => state.tiles);
   const wallColor = useAppStore(state => state.wallColor);
   const viewMode = useAppStore(state => state.viewMode);
   const focusedTileId = useAppStore(state => state.focusedTileId);
   const globalSettings = useAppStore(state => state.globalSettings);
 
-  // 1. Setup Canvas
+  // 1. Setup
   const fabricRef = useCanvasSetup(canvasEl, containerRef, wallColor);
 
   // 2. Managers
   const ghostManager = useGhostManager(fabricRef);
   
-  // 3. Events & Logic (Drop, Click, Move)
-  useCanvasEvents(fabricRef, ghostManager);
+  // 3. Events (با پاس دادن رفرنس سطل زباله)
+  useCanvasEvents(fabricRef, ghostManager, trashRef, setTrashHovered); // ✅ آپدیت شد
 
-  // 4. Camera Controller
+  // 4. Camera
   const { updateCamera } = useCameraController(fabricRef, tiles, viewMode, focusedTileId);
 
-  // 5. Sync Tiles (Render Logic)
+  // 5. Sync Tiles
   useEffect(() => {
     if (!fabricRef.current) return;
     const canvas = fabricRef.current;
 
-    // پاک کردن آبجکت‌های قدیمی (بجز گوست‌ها)
     canvas.getObjects().forEach(o => {
       if (o.type !== 'ghost') canvas.remove(o);
     });
 
-    // رندر مجدد کاشی‌ها
     tiles.forEach(tileData => {
       let pos;
       if (tileData.shape === 'hex') {
@@ -51,12 +54,10 @@ const FabricCanvas = () => {
       } else {
         pos = squareToPixel(tileData.x, tileData.y, 0, 0);
       }
-
-      const tileObj = TileFactory.create(tileData, pos, tileData.shape);
+      const tileObj = TileFactory.create(tileData, pos, tileData.shape , canvas);
       canvas.add(tileObj);
     });
 
-    // درخواست آپدیت دوربین بعد از رندر
     setTimeout(() => updateCamera(), 50);
 
   }, [tiles, wallColor, globalSettings.shape]);
@@ -64,6 +65,9 @@ const FabricCanvas = () => {
   return (
     <div ref={containerRef} className="w-full h-full relative bg-gray-100 overflow-hidden">
       <canvas ref={canvasEl} />
+      
+      {/* ✅ اضافه کردن کامپوننت سطل زباله روی بوم */}
+      <TrashZone ref={trashRef} isHovered={isTrashHovered} />
     </div>
   );
 };
