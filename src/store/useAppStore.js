@@ -45,6 +45,7 @@ openEditModal: (tileId) => set({
     isModalOpen: true,
     viewMode: 'focused', // وقتی ادیت میکنیم زوم هم بمونه رو شکل
     focusedTileId: tileId 
+    
   }),
 
   closeEditModal: () => set({ 

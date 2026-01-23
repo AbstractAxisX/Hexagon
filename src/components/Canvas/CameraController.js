@@ -3,23 +3,19 @@ import { Logger } from '../../utils/logger';
 
 const COMPONENT = 'CameraController';
 
-// ✅ متغیر global برای جلوگیری از انیمیشن‌های همزمان
 let activeAnimation = null;
 
 export const updateCamera = (canvas, tiles, viewMode, focusedTileId) => {
   if (!canvas) return;
 
-  // ✅ اگر انیمیشنی در حال اجراست، کنسلش کن
   if (activeAnimation) {
     try {
       fabric.util.cancelAnimFrame(activeAnimation);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
     activeAnimation = null;
   }
 
-  // اگر کاشی نداریم، زوم پیش‌فرض
+  // اگر کاشی نداریم
   if (tiles.length === 0) {
     canvas.setViewportTransform([1, 0, 0, 1, canvas.width / 2, canvas.height / 2]);
     canvas.requestRenderAll();
@@ -74,7 +70,6 @@ export const updateCamera = (canvas, tiles, viewMode, focusedTileId) => {
     }
   }
 
-  // انیمیشن دوربین
   if (targetBounds) {
     animateCamera(canvas, targetBounds);
   }
@@ -84,7 +79,7 @@ const animateCamera = (canvas, targetBounds) => {
   const scaleX = canvas.width / targetBounds.width;
   const scaleY = canvas.height / targetBounds.height;
   const zoom = Math.min(scaleX, scaleY);
-  const finalZoom = Math.min(Math.max(zoom, 0.5), 2.5); // محدودیت زوم بین 0.5 تا 2.5
+  const finalZoom = Math.min(Math.max(zoom, 0.5), 2.5);
 
   const centerX = targetBounds.left + targetBounds.width / 2;
   const centerY = targetBounds.top + targetBounds.height / 2;
@@ -96,12 +91,10 @@ const animateCamera = (canvas, targetBounds) => {
   const currentPanX = canvas.viewportTransform[4];
   const currentPanY = canvas.viewportTransform[5];
 
-  // ✅ چک کن که آیا تغییر معناداری هست؟
   const zoomDiff = Math.abs(finalZoom - currentZoom);
   const panDiffX = Math.abs(finalPanX - currentPanX);
   const panDiffY = Math.abs(finalPanY - currentPanY);
 
-  // اگر تفاوت خیلی کم است، بدون انیمیشن تنظیم کن
   if (zoomDiff < 0.01 && panDiffX < 5 && panDiffY < 5) {
     canvas.setZoom(finalZoom);
     canvas.viewportTransform[4] = finalPanX;
@@ -126,7 +119,9 @@ const animateCamera = (canvas, targetBounds) => {
       canvas.requestRenderAll();
     },
     onComplete: function() {
-      canvas.setCoords();
+      // ✅ FIX: بجای canvas.setCoords() باید مختصات آبجکت‌ها را آپدیت کنیم
+      canvas.forEachObject((obj) => obj.setCoords());
+      
       activeAnimation = null;
       Logger.success(COMPONENT, 'Camera Animation Complete', { zoom: finalZoom });
     },

@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  // ۱. شکل‌های هندسی (برای اینکه بدونی بوم رو چطوری بکشی)
+  // ۱. شکل‌های هندسی
   shapes: [
     { id: 'hex', name: 'شش‌ضلعی', aspectRatio: 0.866 }, // برای کراپ عکس مهمه
     { id: 'square', name: 'مربع', aspectRatio: 1 },
@@ -15,7 +15,7 @@ export const APP_CONFIG = {
     { id: 'xl', label: 'XL (38x33 cm)' },
   ],
 
-  // ۳. متریال‌های اصلی (برای تنظیمات کلی)
+  // ۳. متریال‌های اصلی 
   materials: [
     { id: 'forex', name: 'فوم (Forex)' },
     { id: 'aluminum', name: 'آلومینیوم' },
