@@ -3,6 +3,10 @@ import { getNeighbors } from '../utils/hexMath';
 import { getSquareNeighbors } from '../utils/squareMath';
 
 const useAppStore = create((set, get) => ({
+  // --- Global References (New Bridge) ---
+  fabricCanvas: null, // رفرنس جهانی بوم
+  setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
+
   globalSettings: {
     shape: 'hex',
     size: 'm',
@@ -206,6 +210,7 @@ openEditModal: (tileId) => set({
       focusedTileId: newTile.id, // اضافه شده برای هماهنگی با درخواست قبلی شما جهت فوکوس خودکار
       viewMode: 'focused'
     }));
+    
   },
 
   removeTile: (id) => {
@@ -222,6 +227,15 @@ openEditModal: (tileId) => set({
       )
     }));
   },
+
+// ✅ متد اختصاصی برای آپدیت متن بدون حذف رنگ/عکس
+updateTileText: (id, textConfig) => {
+  set((state) => ({
+    tiles: state.tiles.map(t =>
+      t.id === id ? { ...t, textConfig: textConfig } : t
+    )
+  }));
+},
 
   selectTile: (id) => set({ selectedTileId: id }),
   setWallColor: (color) => set({ wallColor: color }),

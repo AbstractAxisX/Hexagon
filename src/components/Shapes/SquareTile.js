@@ -1,15 +1,18 @@
 import { fabric } from 'fabric';
 import { SQUARE_MATH } from '../../utils/squareMath';
 import { createClippedImage } from '../../utils/fabricUtils';
+import { createDefaultTextbox } from '../../utils/textUtils';
 
 export const SquareTile = {
   create: (tileData, pixelPos, canvas) => {
-    const { id, x: gridX, y: gridY, content } = tileData;
+    const { id, x: gridX, y: gridY, content, textConfig } = tileData;
     const { x, y } = pixelPos;
     const size = SQUARE_MATH.SIZE - 6;
     const cornerRadius = tileData.corner === 'rounded' ? 10 : 0;
 
-    // ۱. شکل پایه
+    // ---------------------------------------------------------
+    // ۱. شکل پایه (Background Shape)
+    // ---------------------------------------------------------
     const shapeObj = new fabric.Rect({
       width: size,
       height: size,
@@ -20,17 +23,95 @@ export const SquareTile = {
       ry: cornerRadius,
       originX: 'center',
       originY: 'center',
-      objectCaching: false
+      objectCaching: false,
+      name: 'tile-bg',
+      // حیاتی برای درگ شدن گروه
+      selectable: false,
+      evented: false
     });
 
-    // ۲. گروه
-    const group = new fabric.Group([shapeObj], {
+    if (content?.type === 'color' && content.data) {
+      shapeObj.set({ fill: content.data });
+    }
+
+    // ---------------------------------------------------------
+    // ۲. مدیریت لایه‌های متن (Multi-Layer System)
+    // ---------------------------------------------------------
+    const textObjects = [];
+    const scaleFactor = 1.5; // هماهنگ با ضریب زوم ادیتور
+
+    if (textConfig?.layers && Array.isArray(textConfig.layers)) {
+        // الف) لایه‌های جدید پیشرفته
+        textConfig.layers.forEach(layer => {
+            // جلوگیری از باگ غیب شدن (NaN Fix)
+            const safeLeft = layer.left ?? layer.previewLeft ?? 150;
+            const safeTop = layer.top ?? layer.previewTop ?? 150;
+
+            const relX = (safeLeft - 150) / scaleFactor;
+            const relY = (safeTop - 150) / scaleFactor;
+
+            const textObj = new fabric.Text(layer.text || '', {
+                left: relX,
+                top: relY,
+                fontSize: (layer.fontSize || 24) / scaleFactor,
+                fontFamily: layer.fontFamily || 'Vazirmatn',
+                fill: layer.fill || '#000000',
+                originX: 'center',
+                originY: 'center',
+                textAlign: 'center',
+                angle: layer.angle || 0,
+                
+                stroke: layer.stroke || null,
+                strokeWidth: (layer.strokeWidth || 0) / scaleFactor,
+                textBackgroundColor: layer.textBackgroundColor || null,
+                
+                shadow: (layer.shadowBlur > 0 || layer.shadowOffsetX !== 0 || layer.shadowOffsetY !== 0) ? new fabric.Shadow({
+                    color: layer.shadowColor || '#000000',
+                    blur: (layer.shadowBlur || 0) / scaleFactor,
+                    offsetX: (layer.shadowOffsetX || 0) / scaleFactor,
+                    offsetY: (layer.shadowOffsetY || 0) / scaleFactor
+                }) : null,
+
+                // غیرفعال کردن انتخاب برای درگ شدن گروه
+                selectable: false,
+                evented: false
+            });
+            textObjects.push(textObj);
+        });
+    } else {
+        // ب) پشتیبانی از نسخه قدیمی (Legacy)
+        const initialText = textConfig?.text || content?.text || '';
+        if (initialText) {
+            const textBox = createDefaultTextbox(size * 0.9, initialText);
+            // اعمال استایل‌های ساده قدیمی اگر بود
+            if (textConfig) {
+                if (textConfig.fill) textBox.set('fill', textConfig.fill);
+                if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
+                if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
+            }
+            textBox.set({ selectable: false, evented: false });
+            textObjects.push(textBox);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // ۳. ساخت گروه
+    // ---------------------------------------------------------
+    const group = new fabric.Group([shapeObj, ...textObjects], {
       left: x,
       top: y,
       originX: 'center',
       originY: 'center',
       hasControls: false,
       hasBorders: false,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
+      
+      // فعال بودن درگ برای گروه
+      selectable: true,
+      evented: true,
+      
       shadow: new fabric.Shadow({
         color: 'rgba(0,0,0,0.05)',
         blur: 10,
@@ -40,7 +121,9 @@ export const SquareTile = {
       data: { id, x: gridX, y: gridY, shape: 'square' }
     });
 
-    // ۳. تزریق عکس
+    // ---------------------------------------------------------
+    // ۴. هندل کردن عکس
+    // ---------------------------------------------------------
     if (content?.type === 'image' && content.data) {
       const clipFactory = () => new fabric.Rect({
         width: size, height: size,
@@ -49,37 +132,35 @@ export const SquareTile = {
       });
 
       createClippedImage(content.data, clipFactory, (img) => {
-        group.add(img);
-        shapeObj.set({ fill: 'transparent', stroke: 'transparent' });
+        if (!group || (group.canvas === undefined && !canvas)) return;
 
+        group.add(img);
+        
         const border = new fabric.Rect({
           width: size, height: size,
           rx: cornerRadius, ry: cornerRadius,
           fill: 'transparent', stroke: '#CBD5E1', strokeWidth: 2,
-          originX: 'center', originY: 'center'
+          originX: 'center', originY: 'center',
+          selectable: false, evented: false
         });
         group.add(border);
 
-        if (canvas) canvas.requestRenderAll();
-      });
-    }
+        shapeObj.set({ fill: 'transparent', stroke: 'transparent' });
+        
+        // آوردن متن‌ها به رو
+        group.getObjects().forEach(obj => {
+            if (obj.type === 'text' || obj.type === 'textbox') {
+                obj.bringToFront();
+            }
+        });
 
-    if (content?.type === 'image' && content.data) {
-       // ... (کد قبلی مربوط به عکس و ماسک) ...
-    } 
-    else if (content?.type === 'color' && content.data) {
-      // ✅ حالت رنگ: فقط رنگ پس‌زمینه شکل را عوض کن
-      shapeObj.set({ fill: content.data });
-      // اگر قبلا عکسی در گروه بود (مثلا در ادیت مجدد)، باید مطمئن بشیم پاک شده
-      // اما چون در FabricCanvas هر بار کل بوم را از روی استور می‌سازیم،
-      // خودبه‌خود وقتی استور عوض شه، اینجا از اول ساخته میشه و تمیزه.
+        if (canvas) canvas.requestRenderAll();
+        else if (group.canvas) group.canvas.requestRenderAll();
+      });
     }
 
     return group;
   },
-
-  
-
 
   createGhost: (gridPos, pixelPos) => {
     const { x, y } = gridPos;

@@ -8,12 +8,15 @@ import ImageUploadTab from './Tabs/ImageUploadTab';
 import ColorTab from './Tabs/ColorTab';
 import TextEditorTab from '../TextEditorTab'; // ✅ فرض بر این است که فایل را اینجا ساختید
 
+
 const TileEditModal = () => {
   const isOpen = useAppStore(state => state.isModalOpen);
   const activeTab = useAppStore(state => state.activeTab);
   const setActiveTab = useAppStore(state => state.setActiveTab);
   const editingTileId = useAppStore(state => state.editingTileId);
   const updateTileContent = useAppStore(state => state.updateTileContent); // ✅ نیاز داریم برای ذخیره
+  const updateTileText = useAppStore(state => state.updateTileText); // <--- دریافت متد جدید
+
 
   const currentTile = useAppStore(state => 
     state.tiles.find(t => t.id === editingTileId)
@@ -33,10 +36,14 @@ const TileEditModal = () => {
 
   // هندل کردن ذخیره متن
   const handleSaveText = (textData) => {
-    updateTileContent(editingTileId, 'text', textData);
+    // به جای updateTileContent از متد مخصوص متن استفاده میکنیم
+    updateTileText(editingTileId, textData);
     handleClose();
   };
 
+
+
+  
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
@@ -81,6 +88,7 @@ const TileEditModal = () => {
           {activeTab === 'text' && (
              <TextEditorTab 
                initialContent={currentTile.content?.type === 'text' ? currentTile.content.data.jsonContent : undefined}
+               savedTextConfig={currentTile.textConfig}
                onSave={handleSaveText}
                onCancel={handleClose}
              />
