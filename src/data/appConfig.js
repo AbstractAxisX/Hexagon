@@ -30,9 +30,24 @@ export const APP_CONFIG = {
   
   // ۵. روکش‌های خاص (آیتم‌هایی که روی کاشی تکی اعمال میشن)
   coatings: [
-    { id: 'mirror', name: 'آینه', type: 'special' }, 
-    { id: 'cork', name: 'چوب پنبه', type: 'special' },
+    { 
+      id: 'mirror', 
+      name: 'آینه', 
+      type: 'special', 
+      // آدرس فایل در پوشه public
+      textureUrl: '/coatings/mirror.jpg', 
+      // رنگ پیش‌فرض برای نمایش در UI اگر عکس لود نشد
+      previewColor: '#e2e8f0' 
+    }, 
+    { 
+      id: 'cork', 
+      name: 'چوب پنبه', 
+      type: 'special',
+      textureUrl: '/coatings/cork.jpg',
+      previewColor: '#d4a373'
+    },
   ],
+  
 // ۶. گالری تصاویر آماده (از سمت سرور)
   stockImages: [
     { 
@@ -60,5 +75,31 @@ export const APP_CONFIG = {
       category: 'city' 
     },
     // ... هر تعداد عکسی که سرور بفرستد
+  ] ,
+  textures: [
+    { 
+      id: 'tex_wood_1', 
+      title: 'چوب بلوط', 
+      url: 'https://picsum.photos/id/40/800/800', 
+      category: 'wood' 
+    },
+    { 
+      id: 'tex_stone_1', 
+      title: 'سنگ مرمر', 
+      url: 'https://picsum.photos/id/50/800/800', 
+      category: 'stone' 
+    },
+    { 
+      id: 'tex_concrete_1', 
+      title: 'بتن اکسپوز', 
+      url: 'https://picsum.photos/id/60/800/800', 
+      category: 'concrete' 
+    },
+    { 
+      id: 'tex_fabric_1', 
+      title: 'بافت پارچه', 
+      url: 'https://picsum.photos/id/70/800/800', 
+      category: 'fabric' 
+    },
   ]
 };
