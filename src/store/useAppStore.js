@@ -18,7 +18,8 @@ setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
     shape: 'hex',
     size: 'm',
     material: 'forex',
-    corner: 'sharp',
+    corner: 'rounded',
+    // sharp
     editingTileId: null, // تایلی که الان داریم ویرایشش می‌کنیم
   isModalOpen: false,
   activeTab: 'upload',

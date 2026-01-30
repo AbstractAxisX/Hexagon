@@ -87,7 +87,7 @@ export function getNeighbors(q, r) {
 }
 
 /**
- * محاسبه نقاط رسم شش‌ضلعی
+ * محاسبه نقاط رسم شش‌ضلعی (برای گوشه‌های تیز)
  */
 export function getHexPoints() {
   const points = [];
@@ -100,4 +100,56 @@ export function getHexPoints() {
     });
   }
   return points;
+}
+
+/**
+ * تولید مسیر SVG برای شش‌ضلعی با گوشه‌های گرد
+ * @param {number} cornerRadius - شعاع گردی (پیش‌فرض ۱۰)
+ * @returns {string} - رشته مسیر SVG (d attribute)
+ */
+export function getHexPathData(cornerRadius = 10) {
+  const points = getHexPoints();
+  const len = points.length;
+  // محدود کردن شعاع گردی که شکل خراب نشود (نصف ضلع)
+  // ضلع شش‌ضلعی برابر شعاع آن است
+  const maxR = HEX_MATH.RADIUS / 2;
+  const r = Math.min(cornerRadius, maxR);
+
+  let d = "";
+
+  for (let i = 0; i < len; i++) {
+    const curr = points[i];
+    const prev = points[(i - 1 + len) % len];
+    const next = points[(i + 1) % len];
+
+    // بردار از رأس فعلی به سمت قبلی
+    const vPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+    // بردار از رأس فعلی به سمت بعدی
+    const vNext = { x: next.x - curr.x, y: next.y - curr.y };
+
+    const lenPrev = Math.sqrt(vPrev.x * vPrev.x + vPrev.y * vPrev.y);
+    const lenNext = Math.sqrt(vNext.x * vNext.x + vNext.y * vNext.y);
+
+    // محاسبه نقطه شروع خم (روی ضلع قبلی)
+    const startX = curr.x + (vPrev.x / lenPrev) * r;
+    const startY = curr.y + (vPrev.y / lenPrev) * r;
+
+    // محاسبه نقطه پایان خم (روی ضلع بعدی)
+    const endX = curr.x + (vNext.x / lenNext) * r;
+    const endY = curr.y + (vNext.y / lenNext) * r;
+
+    if (i === 0) {
+      d += `M ${startX} ${startY}`;
+    } else {
+      d += ` L ${startX} ${startY}`;
+    }
+
+    // رسم منحنی بزیه (Quadratic)
+    // Control Point: خود رأس (curr)
+    // End Point: endX, endY
+    d += ` Q ${curr.x} ${curr.y} ${endX} ${endY}`;
+  }
+
+  d += " Z";
+  return d;
 }

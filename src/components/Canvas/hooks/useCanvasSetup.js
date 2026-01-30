@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { Logger } from '../../../utils/logger';
 
-export const useCanvasSetup = (canvasEl, containerRef, wallColor) => {
+// اضافه شدن پارامتر onCanvasReady
+export const useCanvasSetup = (canvasEl, containerRef, wallColor, onCanvasReady) => {
   const fabricRef = useRef(null);
 
   useEffect(() => {
@@ -11,25 +12,18 @@ export const useCanvasSetup = (canvasEl, containerRef, wallColor) => {
     Logger.info('CanvasSetup', 'Initializing...');
 
     const canvas = new fabric.Canvas(canvasEl.current, {
-      selection: false, // انتخاب گروهی با درگ موس (در موبایل مزاحم است)
+      selection: false,
       preserveObjectStacking: true,
       backgroundColor: wallColor,
       renderOnAddRemove: false,
       hoverCursor: 'default',
-      allowTouchScrolling: false, // 🔒 جلوگیری از اسکرول در موبایل
-      fireRightClick: true, // برای منوهای احتمالی آینده
-      stopContextMenu: true, // جلوگیری از منوی راست کلیک مرورگر
     });
 
     fabricRef.current = canvas;
-
-    // 🔒 اعمال هک CSS برای اطمینان ۱۰۰ درصدی در iOS و Android
-    // این کار باعث می‌شود مرورگر بفهمد که تاچ‌های روی این المنت برای اسکرول نیستند
-    if (canvas.upperCanvasEl) {
-      canvas.upperCanvasEl.style.touchAction = 'none';
-    }
-    if (canvas.lowerCanvasEl) {
-      canvas.lowerCanvasEl.style.touchAction = 'none';
+    
+    // ✅ خبر دادن به کامپوننت اصلی که بوم آماده است
+    if (onCanvasReady) {
+      onCanvasReady(canvas);
     }
 
     const handleResize = () => {
@@ -48,9 +42,9 @@ export const useCanvasSetup = (canvasEl, containerRef, wallColor) => {
       canvas.dispose();
       fabricRef.current = null;
     };
-  }, []); // اجرا فقط یکبار
+  }, []); 
 
-  // آپدیت رنگ دیوار جداگانه
+  // آپدیت رنگ دیوار
   useEffect(() => {
     if (fabricRef.current) {
       fabricRef.current.setBackgroundColor(wallColor, () => {

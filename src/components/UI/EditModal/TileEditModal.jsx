@@ -11,6 +11,7 @@ import StockImagesTab from './Tabs/StockImagesTab.jsx';
 import TextureTab from './Tabs/TextureTab';
 import CoatingTab from './Tabs/CoatingTab';
 
+
 const TileEditModal = () => {
   const isOpen = useAppStore(state => state.isModalOpen);
   const activeTab = useAppStore(state => state.activeTab);
