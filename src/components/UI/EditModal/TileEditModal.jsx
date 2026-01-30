@@ -1,22 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Image as ImageIcon, Palette, Type } from 'lucide-react';
-import useAppStore from '../../../store/useAppStore'; // مسیر ایمپورت را چک کنید
+import useAppStore from '../../../store/useAppStore';
 
 // Components
 import ModalHeader from './ModalHeader'; 
 import ImageUploadTab from './Tabs/ImageUploadTab';
 import ColorTab from './Tabs/ColorTab';
-import TextEditorTab from '../TextEditorTab'; // ✅ فرض بر این است که فایل را اینجا ساختید
-
+import TextEditorTab from '../TextEditorTab';
 
 const TileEditModal = () => {
   const isOpen = useAppStore(state => state.isModalOpen);
   const activeTab = useAppStore(state => state.activeTab);
   const setActiveTab = useAppStore(state => state.setActiveTab);
   const editingTileId = useAppStore(state => state.editingTileId);
-  const updateTileContent = useAppStore(state => state.updateTileContent); // ✅ نیاز داریم برای ذخیره
-  const updateTileText = useAppStore(state => state.updateTileText); // <--- دریافت متد جدید
-
+  
+  // ✅ بازگرداندن متد اختصاصی که شما در کد قدیمی داشتید
+  const updateTileText = useAppStore(state => state.updateTileText); 
 
   const currentTile = useAppStore(state => 
     state.tiles.find(t => t.id === editingTileId)
@@ -26,73 +25,102 @@ const TileEditModal = () => {
     useAppStore.setState({ isModalOpen: false, editingTileId: null });
   };
 
+  // جلوگیری از اسکرول بادی وقتی مودال باز است (UI Fix)
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
+
   if (!isOpen || !currentTile) return null;
 
   const tabs = [
     { id: 'upload', label: 'تصویر', icon: ImageIcon },
-    { id: 'color', label: 'رنگ و طرح', icon: Palette },
-    { id: 'text', label: 'متن', icon: Type }, // ✅ تب متن فعال شد
+    { id: 'color', label: 'رنگ و طرح', icon: Palette }, // لیبل کوتاه‌تر برای موبایل
+    { id: 'text', label: 'متن', icon: Type },
   ];
 
-  // هندل کردن ذخیره متن
+  // ✅ لاجیک ذخیره دقیقا طبق کد قدیمی شما
   const handleSaveText = (textData) => {
-    // به جای updateTileContent از متد مخصوص متن استفاده میکنیم
     updateTileText(editingTileId, textData);
     handleClose();
   };
 
-
-
-  
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-        
-        {/* ✅ پراپ onClose اضافه شد تا ModalHeader بتواند پنجره را ببندد */}
-        <ModalHeader tile={currentTile} onClose={handleClose} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        onClick={handleClose} 
+      />
 
-        {/* نوار تب‌ها */}
-        <div className="bg-slate-100 border-b border-slate-200 px-3 pt-3 flex items-end gap-1 select-none shadow-inner">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                relative flex items-center gap-2 px-6 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200
-                ${activeTab === tab.id 
-                  ? 'bg-white text-blue-600 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-10 -mb-px border-t border-x border-slate-200' 
-                  : 'bg-slate-200/60 text-slate-500 hover:bg-slate-200 hover:text-slate-700 border border-transparent'
-                }
-              `}
-            >
-              <tab.icon size={16} />
-              {tab.label}
-              {activeTab === tab.id && (
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-500 rounded-t-full" />
-              )}
-            </button>
-          ))}
+      {/* Main Container - UI جدید و موبایل فرندلی */}
+      <div className={`
+        relative bg-white flex flex-col shadow-2xl overflow-hidden
+        
+        /* 📱 Mobile Styles: تمام صفحه */
+        w-full h-[100dvh] rounded-none
+        
+        /* 💻 Desktop Styles: سایز ثابت */
+        md:w-[700px] md:h-[650px] md:rounded-2xl md:border md:border-slate-200
+        
+        animate-in zoom-in-95 duration-200
+      `}>
+        
+        {/* Header Section */}
+        <div className="shrink-0 z-10 bg-white">
+          <ModalHeader tile={currentTile} onClose={handleClose} />
+          
+          {/* Tabs */}
+          <div className="bg-slate-50 border-b border-slate-200 px-4 pt-2 flex items-end gap-2 overflow-x-auto no-scrollbar">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex items-center gap-2 px-4 py-3 rounded-t-lg text-sm font-medium transition-all whitespace-nowrap
+                  ${activeTab === tab.id 
+                    ? 'bg-white text-blue-600 shadow-sm border-t border-x border-slate-200 -mb-px relative z-10' 
+                    : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-700'
+                  }
+                `}
+              >
+                <tab.icon size={18} />
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* محتوای اصلی */}
-        <div className="flex-1 overflow-y-auto p-6 bg-white min-h-[400px]">
-          {activeTab === 'upload' && (
-            <ImageUploadTab tile={currentTile} />
-          )}
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-6 w-full relative">
           
-          {activeTab === 'color' && (
-            <ColorTab tile={currentTile} />
-          )}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm min-h-full p-4">
+            {activeTab === 'upload' && (
+              <ImageUploadTab tile={currentTile} />
+            )}
+            
+            {activeTab === 'color' && (
+              <ColorTab tile={currentTile} />
+            )}
 
-          {/* ✅ اضافه شدن تب متن */}
-          {activeTab === 'text' && (
-             <TextEditorTab 
-               initialContent={currentTile.content?.type === 'text' ? currentTile.content.data.jsonContent : undefined}
-               savedTextConfig={currentTile.textConfig}
-               onSave={handleSaveText}
-               onCancel={handleClose}
-             />
-          )}
+            {activeTab === 'text' && (
+               <TextEditorTab 
+                 initialContent={currentTile.content?.type === 'text' ? currentTile.content.data.jsonContent : undefined}
+                 // ✅ بازگرداندن پراپ حیاتی برای کانفیگ متن
+                 savedTextConfig={currentTile.textConfig} 
+                 onSave={handleSaveText}
+                 onCancel={handleClose}
+               />
+            )}
+          </div>
+          
+          {/* Spacer for Mobile Scrolling */}
+          <div className="h-20 md:hidden"></div>
         </div>
 
       </div>

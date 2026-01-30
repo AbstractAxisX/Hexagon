@@ -9,6 +9,7 @@ import { squareToPixel } from '../../utils/squareMath';
 import TrashZone from '../UI/TrashZone';
 
 // Hooks
+import { useGestures } from './hooks/useGestures'; 
 import { useCanvasSetup } from './hooks/useCanvasSetup';
 import { useGhostManager } from './hooks/useGhostManager';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
@@ -46,8 +47,12 @@ const FabricCanvas = () => {
   // 3. Events
   useCanvasEvents(fabricRef, ghostManager, trashRef, setTrashHovered);
 
+  // Gestures (Zoom & Pan)
+useGestures(fabricRef);
+
   // 4. Camera
   const { updateCamera } = useCameraController(fabricRef, tiles, viewMode, focusedTileId);
+  
 
   // 5. Sync Tiles
   useEffect(() => {

@@ -11,14 +11,26 @@ export const useCanvasSetup = (canvasEl, containerRef, wallColor) => {
     Logger.info('CanvasSetup', 'Initializing...');
 
     const canvas = new fabric.Canvas(canvasEl.current, {
-      selection: false,
+      selection: false, // انتخاب گروهی با درگ موس (در موبایل مزاحم است)
       preserveObjectStacking: true,
       backgroundColor: wallColor,
       renderOnAddRemove: false,
       hoverCursor: 'default',
+      allowTouchScrolling: false, // 🔒 جلوگیری از اسکرول در موبایل
+      fireRightClick: true, // برای منوهای احتمالی آینده
+      stopContextMenu: true, // جلوگیری از منوی راست کلیک مرورگر
     });
 
     fabricRef.current = canvas;
+
+    // 🔒 اعمال هک CSS برای اطمینان ۱۰۰ درصدی در iOS و Android
+    // این کار باعث می‌شود مرورگر بفهمد که تاچ‌های روی این المنت برای اسکرول نیستند
+    if (canvas.upperCanvasEl) {
+      canvas.upperCanvasEl.style.touchAction = 'none';
+    }
+    if (canvas.lowerCanvasEl) {
+      canvas.lowerCanvasEl.style.touchAction = 'none';
+    }
 
     const handleResize = () => {
       if (containerRef.current) {

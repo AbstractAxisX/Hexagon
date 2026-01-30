@@ -10,26 +10,52 @@ export const useCanvasEvents = (fabricRef, ghostManager, trashRef, setTrashHover
   const { showGhostSlots, clearGhosts } = ghostManager;
   
   const setFocus = useAppStore(state => state.setFocus);
-  const openEditModal = useAppStore(state => state.openEditModal); // ✅ جدید
+  const openEditModal = useAppStore(state => state.openEditModal);
   const setOverview = useAppStore(state => state.setOverview);
   const moveOrSwapTile = useAppStore(state => state.moveOrSwapTile);
-  const removeTile = useAppStore(state => state.removeTile); // ✅ تابع حذف از استور
+  const removeTile = useAppStore(state => state.removeTile);
 
-  // تابع کمکی برای تشخیص برخورد با سطل زباله
+  // ✅ تابع کمکی جدید: استخراج مختصات چه از موس، چه از تاچ
+  const getClientCoords = (e) => {
+    const nativeEvent = e.e; // رویداد اصلی مرورگر
+
+    // 1. اگر تاچ در حال انجام است (Touch Move / Start)
+    if (nativeEvent.touches && nativeEvent.touches.length > 0) {
+      return {
+        x: nativeEvent.touches[0].clientX,
+        y: nativeEvent.touches[0].clientY
+      };
+    }
+    // 2. اگر تاچ تمام شده (Touch End / Drop)
+    else if (nativeEvent.changedTouches && nativeEvent.changedTouches.length > 0) {
+      return {
+        x: nativeEvent.changedTouches[0].clientX,
+        y: nativeEvent.changedTouches[0].clientY
+      };
+    }
+    // 3. حالت استاندارد موس
+    return {
+      x: nativeEvent.clientX,
+      y: nativeEvent.clientY
+    };
+  };
+
+  // تابع تشخیص برخورد با سطل زباله (اصلاح شده برای موبایل)
   const isOverTrash = (e) => {
     if (!trashRef.current || !e) return false;
     
-    // گرفتن مختصات موس نسبت به کل صفحه (Viewport)
-    // نکته: fabric event دارای e.e (native event) است
-    const { clientX, clientY } = e.e; 
+    // دریافت مختصات صحیح
+    const { x, y } = getClientCoords(e);
     
+    // دریافت ابعاد سطل زباله
     const trashRect = trashRef.current.getBoundingClientRect();
     
+    // بررسی برخورد (Collision Detection)
     return (
-      clientX >= trashRect.left &&
-      clientX <= trashRect.right &&
-      clientY >= trashRect.top &&
-      clientY <= trashRect.bottom
+      x >= trashRect.left &&
+      x <= trashRect.right &&
+      y >= trashRect.top &&
+      y <= trashRect.bottom
     );
   };
 
@@ -42,21 +68,18 @@ export const useCanvasEvents = (fabricRef, ghostManager, trashRef, setTrashHover
       const obj = e.target;
       obj.set({ opacity: 0.5 });
 
-      // اگر زوم بود، برگرد به نمای کلی
       if (useAppStore.getState().viewMode === 'focused') {
         setOverview();
       }
 
-      // 🗑️ چک کردن اینکه روی سطل زباله هستیم یا نه
+      // چک کردن سطل زباله با مختصات جدید
       const hoveringTrash = isOverTrash(e);
       setTrashHovered(hoveringTrash);
 
       if (hoveringTrash) {
-        // اگر روی سطل زباله است، گوست‌ها را مخفی کن تا گیج نشود
         clearGhosts();
-        obj.set({ opacity: 0.3 }); // کمرنگ‌تر شدن شکل برای القای حذف
+        obj.set({ opacity: 0.3 }); // کمرنگ‌تر شدن برای القای حذف
       } else {
-        // اگر روی سطل نیست، گوست‌ها را نشان بده
         showGhostSlots(obj);
       }
     };
@@ -65,28 +88,24 @@ export const useCanvasEvents = (fabricRef, ghostManager, trashRef, setTrashHover
     const handleObjectModified = (e) => {
       const obj = e.target;
       
-      // 🗑️ اول چک کن آیا باید حذف شود؟
+      // لاجیک حذف (دراپ روی سطل)
       if (isOverTrash(e)) {
         const { id } = obj.data;
         
-        // ۱. حذف از استور
-        removeTile(id);
-        
-        // ۲. حذف گرافیکی از بوم
-        canvas.remove(obj);
+        removeTile(id); // حذف از استور
+        canvas.remove(obj); // حذف از بوم
         canvas.requestRenderAll();
         
-        // ۳. ریست کردن وضعیت‌ها
         clearGhosts();
         setTrashHovered(false);
         Logger.info('CanvasEvents', '🗑️ Item Deleted via Drag', { id });
-        return; // پایان تابع، دیگه دراپ لاجیک اجرا نشه
+        return; // توقف عملیات، دیگر اسنپ انجام نشود
       }
 
-      // اگر حذف نشد، ادامه منطق دراپ معمولی...
+      // ادامه منطق دراپ معمولی (اسنپ به گرید)
       clearGhosts();
       obj.set({ opacity: 1 });
-      setTrashHovered(false); // محض اطمینان
+      setTrashHovered(false);
       handleDropLogic(obj, canvas);
     };
 
@@ -96,19 +115,16 @@ export const useCanvasEvents = (fabricRef, ghostManager, trashRef, setTrashHover
       }
     };
 
+    // این هندلر برای دسکتاپ است (برای موبایل دکمه مداد را اضافه کردیم)
     const handleDblClick = (e) => {
-if (e.target && e.target.data?.id) {
-        // اگر روی شکل دبل کلیک شد
+      if (e.target && e.target.data?.id) {
         const tileId = e.target.data.id;
         console.log('📝 Edit Tile:', tileId);
         openEditModal(tileId);
       } else {
-        // اگر روی فضای خالی دبل کلیک شد
         setOverview();
       }
     };
-
-    
 
     canvas.on('object:moving', handleObjectMoving);
     canvas.on('object:modified', handleObjectModified);
@@ -122,9 +138,9 @@ if (e.target && e.target.data?.id) {
       canvas.off('mouse:down', handleMouseDown);
       canvas.off('mouse:dblclick', handleDblClick);
     };
-  }, [fabricRef.current]); // وابسته به رفرنس بوم
+  }, [fabricRef.current]);
 
-  // --- Drop Logic (بدون تغییر، فقط برای تکمیل کد) ---
+  // --- Drop Logic (بدون تغییر) ---
   const handleDropLogic = (obj, canvas) => {
     const allTiles = useAppStore.getState().tiles;
     const { id, shape } = obj.data;

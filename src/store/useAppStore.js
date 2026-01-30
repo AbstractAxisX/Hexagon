@@ -3,7 +3,14 @@ import { getNeighbors } from '../utils/hexMath';
 import { getSquareNeighbors } from '../utils/squareMath';
 
 const useAppStore = create((set, get) => ({
+
+// --- Settings Modal State ---
+isSettingsOpen: false,
+setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
+
+
   // --- Global References (New Bridge) ---
+
   fabricCanvas: null, // رفرنس جهانی بوم
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
 

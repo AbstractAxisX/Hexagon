@@ -268,7 +268,7 @@ const TextEditorTab = ({ savedTextConfig, onSave, onDelete }) => {
       </div>
       
       {/* 3. Sticky Footer Actions */}
-      <div className="absolute bottom-2 left-0 right-0 max-w-[40rem] rounded-2xl mx-auto  bg-white border-t p-3 flex gap-3 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20">
+      <div className="sticky bottom-0 left-0 right-0 max-w-[40rem] rounded-2xl mx-4 mx-auto  bg-white border-t p-3 flex gap-3 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20">
             <button onClick={onDelete} className="flex-1 py-3 text-red-500 bg-red-50 rounded-xl font-bold text-sm active:scale-95 transition-transform">
                 حذف متن
             </button>
