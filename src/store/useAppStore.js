@@ -1,6 +1,45 @@
 import { create } from 'zustand';
 import { getNeighbors } from '../utils/hexMath';
 import { getSquareNeighbors } from '../utils/squareMath';
+import { fetchPrice } from '../services/mockApi'; // ← مسیر رو با ساختار پروژه‌ات تنظیم کن
+
+// ── ریل‌تایم قیمت: debounce + AbortController ──
+let _priceController = null;
+let _priceTimer      = null;
+
+function schedulePriceFetch(store) {
+  clearTimeout(_priceTimer);
+  _priceTimer = setTimeout(async () => {
+    _priceController?.abort();
+    _priceController = new AbortController();
+    const signal = _priceController.signal;
+
+    const state = store.getState();
+    if (state.tiles.length === 0) {
+      store.setState({ totalPrice: 0, isCalculating: false });
+      return;
+    }
+    store.setState({ isCalculating: true });
+
+    const payload = {
+      config: state.globalSettings,
+      tiles: state.tiles.map(t => ({
+        q: t.q, r: t.r, x: t.x, y: t.y,
+        shape: t.shape, type: t.content.type, content: t.content.data,
+      })),
+    };
+
+    try {
+      const { totalPrice } = await fetchPrice(payload, signal);
+      store.setState({ totalPrice, isCalculating: false });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('خطا در محاسبه قیمت:', err);
+        store.setState({ isCalculating: false });
+      }
+    }
+  }, 400);
+}
 
 const useAppStore = create((set, get) => ({
 
@@ -20,7 +59,7 @@ setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
     material: 'forex',
     corner: 'rounded',
     // sharp
-    editingTileId: null, // تایلی که الان داریم ویرایشش می‌کنیم
+    editingTileId: null,
   isModalOpen: false,
   activeTab: 'upload',
   },
@@ -39,6 +78,9 @@ setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
     set((state) => ({
       globalSettings: { ...state.globalSettings, [key]: value }
     }));
+    if (['material', 'size'].includes(key)) {
+      schedulePriceFetch(useAppStore);
+    }
   },
 
   setTileColor: (tileId, colorHex) => set(state => ({
@@ -79,7 +121,6 @@ openEditModal: (tileId) => set({
   })),
 
 
-  // ✅ الگوریتم هوشمند: بسته به شکل، از Grid مناسب استفاده کن
   addTile: (coord1, coord2) => {
     const state = get();
     const shape = state.globalSettings.shape;
@@ -215,9 +256,10 @@ openEditModal: (tileId) => set({
     console.log(`✅ کاشی جدید اضافه شد:`, targetCoord);
     set(state => ({ 
       tiles: [...state.tiles, newTile],
-      focusedTileId: newTile.id, // اضافه شده برای هماهنگی با درخواست قبلی شما جهت فوکوس خودکار
+      focusedTileId: newTile.id,
       viewMode: 'focused'
     }));
+    schedulePriceFetch(useAppStore); // ← ریل‌تایم قیمت
     
   },
 
@@ -226,6 +268,7 @@ openEditModal: (tileId) => set({
       tiles: state.tiles.filter(t => t.id !== id),
       selectedTileId: null
     }));
+    schedulePriceFetch(useAppStore); // ← ریل‌تایم قیمت
   },
 
   updateTileContent: (id, type, data) => {
@@ -264,28 +307,14 @@ updateTileText: (id, textConfig) => {
     };
   },
 
-  fetchPriceFromBackend: async () => {
-    set({ isCalculating: true });
-    const payload = get().generateOrderPayload();
-
-    try {
-      console.log("📡 Sending data to server for pricing:", payload);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const mockPriceFromServer = 1_500_000;
-      set({ totalPrice: mockPriceFromServer });
-    } catch (error) {
-      console.error("خطا در محاسبه قیمت:", error);
-    } finally {
-      set({ isCalculating: false });
-    }
-  },
+  // این متد برای فراخوانی دستی باقیه (مثلاً دکمه رفرش قیمت)
+  fetchPriceFromBackend: () => schedulePriceFetch(useAppStore),
 
   moveOrSwapTile: (draggedId, targetCoord) => {
     set(state => {
       const draggedTile = state.tiles.find(t => t.id === draggedId);
       if (!draggedTile) return state;
 
-      // پیدا کردن کاشی مقصد با توجه به Grid System
       let targetTile;
       if (draggedTile.shape === 'hex') {
         targetTile = state.tiles.find(t => 
@@ -298,7 +327,6 @@ updateTileText: (id, textConfig) => {
       }
 
       if (targetTile) {
-        // SWAP
         return {
           tiles: state.tiles.map(t => {
             if (t.id === draggedId) {
@@ -315,7 +343,6 @@ updateTileText: (id, textConfig) => {
           })
         };
       } else {
-        // MOVE
         return {
           tiles: state.tiles.map(t =>
             t.id === draggedId 
@@ -332,8 +359,6 @@ updateTileText: (id, textConfig) => {
   addRingAround: () => {
     const state = get();
     const currentTiles = state.tiles;
-    // فرض بر این است که وقتی رینگ اضافه می‌شود همه کاشی‌ها یک شکل هستند
-    // یا بر اساس تنظیمات گلوبال تصمیم می‌گیریم
     const shape = state.globalSettings.shape;
     
     if (shape === 'hex') {
@@ -361,6 +386,7 @@ updateTileText: (id, textConfig) => {
       });
 
       set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+      schedulePriceFetch(useAppStore); // ← ریل‌تایم قیمت
 
     } else {
       const existingCoords = new Set(currentTiles.filter(t => t.shape !== 'hex').map(t => `${t.x},${t.y}`));
@@ -387,6 +413,7 @@ updateTileText: (id, textConfig) => {
       });
 
       set(state => ({ tiles: [...state.tiles, ...newTiles] }));
+      schedulePriceFetch(useAppStore); // ← ریل‌تایم قیمت
     }
   },
 

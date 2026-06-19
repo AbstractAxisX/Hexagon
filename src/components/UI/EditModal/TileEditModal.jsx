@@ -1,182 +1,119 @@
-import React, { useEffect, useState } from 'react';
-import { Image as ImageIcon, Palette, Type, LayoutGrid,BrickWall,Layers  } from 'lucide-react'; // LayoutGrid آیکون مناسب برای گالری
+import React, { useState, useEffect } from 'react';
+import { Image as ImageIcon, Palette, Type, LayoutGrid, BrickWall, Layers, X, Hexagon, Circle, Square } from 'lucide-react';
 import useAppStore from '../../../store/useAppStore';
+import ImageUploadTab  from './Tabs/ImageUploadTab';
+import ColorTab        from './Tabs/ColorTab';
+import TextEditorTab   from '../TextEditorTab';
+import StockImagesTab  from './Tabs/StockImagesTab.jsx';
+import TextureTab      from './Tabs/TextureTab';
+import CoatingTab      from './Tabs/CoatingTab';
 
-// Components
-import ModalHeader from './ModalHeader'; 
-import ImageUploadTab from './Tabs/ImageUploadTab';
-import ColorTab from './Tabs/ColorTab';
-import TextEditorTab from '../TextEditorTab';
-import StockImagesTab from './Tabs/StockImagesTab.jsx'; 
-import TextureTab from './Tabs/TextureTab';
-import CoatingTab from './Tabs/CoatingTab';
+const TABS = [
+  { id: 'upload',  label: 'آپلود',        icon: ImageIcon  },
+  { id: 'stock',   label: 'گالری',        icon: LayoutGrid },
+  { id: 'texture', label: 'تکسچر',        icon: BrickWall  },
+  { id: 'coating', label: 'روکش',         icon: Layers     },
+  { id: 'color',   label: 'رنگ',          icon: Palette    },
+  { id: 'text',    label: 'متن',          icon: Type       },
+];
 
+const SHAPE_ICON = { hex: Hexagon, circle: Circle, square: Square };
+const SHAPE_LABEL = { hex: 'شش‌ضلعی', circle: 'دایره', square: 'مربع' };
 
 const TileEditModal = () => {
-  const isOpen = useAppStore(state => state.isModalOpen);
-  const activeTab = useAppStore(state => state.activeTab);
-  const setActiveTab = useAppStore(state => state.setActiveTab);
-  const editingTileId = useAppStore(state => state.editingTileId);
-  const updateTileText = useAppStore(state => state.updateTileText); 
-  const setTileImage = useAppStore(state => state.setTileImage);
+  const isOpen        = useAppStore(s => s.isModalOpen);
+  const activeTab     = useAppStore(s => s.activeTab);
+  const setActiveTab  = useAppStore(s => s.setActiveTab);
+  const editingTileId = useAppStore(s => s.editingTileId);
+  const updateTileText = useAppStore(s => s.updateTileText);
+  const setTileImage  = useAppStore(s => s.setTileImage);
+  const currentTile   = useAppStore(s => s.tiles.find(t => t.id === editingTileId));
 
-  const currentTile = useAppStore(state => 
-    state.tiles.find(t => t.id === editingTileId)
-  );
+  const [stockSrc, setStockSrc] = useState(null);
 
-  // ✅ استیت محلی برای انتقال عکس از تب گالری به تب آپلود
-  const [selectedStockImage, setSelectedStockImage] = useState(null);
-
-  const handleClose = () => {
+  const close = () => {
     useAppStore.setState({ isModalOpen: false, editingTileId: null });
-    // پاکسازی استیت هنگام بسته شدن برای جلوگیری از باگ در باز شدن بعدی
-    setTimeout(() => setSelectedStockImage(null), 300);
+    setTimeout(() => setStockSrc(null), 300);
   };
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => { document.body.style.overflow = 'unset'; };
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
-
-  // تصویر های اماده سایت
-  const handleSelectImageSource = (url) => {
-    setSelectedStockImage(url);
-    setActiveTab('upload'); // سوئیچ به تب کراپ
-  };
-
-  // ✅ هندلر جدید اختصاصی برای روکش‌ها (Coating)
-  // این تابع بدون پرسش سایز، مستقیماً اعمال می‌کند
-  const handleAutoApplyCoating = (coating) => {
-    if (coating.textureUrl) {
-      // ذخیره مستقیم URL یا دیتای مربوط به روکش
-      // نکته: ما اینجا URL را پاس میدهیم. فابریک باید بتواند این URL را لود کند.
-      setTileImage(editingTileId, coating.textureUrl);
-      
-      // آپشنال: اگر بخواهید نوع روکش هم در دیتای تایل ذخیره شود برای قیمت دهی:
-      // useAppStore.setState(state => ({
-      //   tiles: state.tiles.map(t => t.id === editingTileId ? { ...t, coatingId: coating.id } : t)
-      // }));
-
-      // بستن مودال بعد از انتخاب (چون کار تمام است)
-      handleClose();
-    }
-  };
-
-  // ✅ تابع هندلر: وقتی کاربر از گالری عکسی انتخاب کرد
-  const handleSelectStockImage = (url) => {
-    setSelectedStockImage(url); // عکس را ذخیره کن
-    setActiveTab('upload');     // خودکار برو به تب آپلود/کراپ
-  };
-
-  // اگر تب تغییر کرد و کاربر رفت سراغ چیزی غیر از آپلود، عکس انتخابی موقت پاک شود بهتر است
-  // اما اینجا نگه میداریم شاید بخواهد برگردد. مدیریت state به ImageUploadTab سپرده شده.
 
   if (!isOpen || !currentTile) return null;
 
-  const currentCoatingId = null;
+  const ShapeIcon = SHAPE_ICON[currentTile.shape] ?? Hexagon;
 
-  const tabs = [
-    { id: 'upload', label: 'آپلود', icon: ImageIcon },
-    { id: 'stock', label: 'تصاویر سایت', icon: LayoutGrid },
-    { id: 'texture', label: 'تکسچر', icon: BrickWall },
-    { id: 'coating', label: 'روکش', icon: Layers },
-    { id: 'color', label: 'رنگ و طرح', icon: Palette },
-    { id: 'text', label: 'متن', icon: Type },
-  ];
-
-  const handleSaveText = (textData) => {
-    updateTileText(editingTileId, textData);
-    handleClose();
-  };
+  const handleSaveText     = data  => { updateTileText(editingTileId, data); close(); };
+  const handleCoating      = c     => { if (c.textureUrl) { setTileImage(editingTileId, c.textureUrl); close(); } };
+  const handlePickStock    = url   => { setStockSrc(url); setActiveTab('upload'); };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-        onClick={handleClose} 
-      />
+    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={close} />
 
-      {/* Main Container */}
-      <div className={`
-        relative bg-white flex flex-col shadow-2xl overflow-hidden
-        w-full h-[100dvh] rounded-none
-        md:w-[700px] md:h-[650px] md:rounded-2xl md:border md:border-slate-200
-        animate-in zoom-in-95 duration-200
-      `}>
-        
-        {/* Header Section */}
-        <div className="shrink-0 z-10 bg-white">
-          <ModalHeader tile={currentTile} onClose={handleClose} />
-          
-          {/* Tabs */}
-          <div className="bg-slate-50 border-b border-slate-200 px-4 pt-2 flex items-end gap-2 overflow-x-auto no-scrollbar">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+      <div className="
+        relative bg-[#0f1117] flex flex-col shadow-2xl overflow-hidden
+        w-full h-[90dvh] sm:min-h-[90vh] rounded-t-3xl
+        md:w-[680px] md:h-[680px] md:rounded-2xl
+        border border-white/10
+        animate-in slide-in-from-bottom-6 md:zoom-in-95 duration-250
+      ">
+
+        {/* ── Header ─────────────────────────────────────────── */}
+        <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-b border-white/10">
+          <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+            <ShapeIcon size={18} className="text-blue-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white leading-none">ویرایش کاشی</p>
+            <p className="text-xs text-white/30 mt-0.5 font-mono">{SHAPE_LABEL[currentTile.shape] ?? '—'} · {currentTile.id?.slice(0,8)}</p>
+          </div>
+          <button onClick={close}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* ── Tabs ───────────────────────────────────────────── */}
+        <div className="shrink-0 flex gap-1 px-4 pt-3 pb-0 overflow-x-auto no-scrollbar">
+          {TABS.map(tab => {
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`
-                  flex items-center gap-2 px-4 py-3 rounded-t-lg text-sm font-medium transition-all whitespace-nowrap
-                  ${activeTab === tab.id 
-                    ? 'bg-white text-blue-600 shadow-sm border-t border-x border-slate-200 -mb-px relative z-10' 
-                    : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-700'
+                  flex items-center gap-1.5 px-3.5 py-2 rounded-t-xl text-xs font-medium whitespace-nowrap
+                  border-t border-x transition-all
+                  ${active
+                    ? 'bg-white text-slate-800 border-white/20 shadow-sm -mb-px relative z-10'
+                    : 'text-white/40 border-transparent hover:text-white/70 hover:bg-white/5'
                   }
                 `}
               >
-                <tab.icon size={18} />
-                <span>{tab.label}</span>
+                <tab.icon size={14} />
+                {tab.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-6 w-full relative">
-          
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm min-h-full p-4">
-            {activeTab === 'upload' && (
-              <ImageUploadTab 
-                tile={currentTile} 
-                externalImageSrc={selectedStockImage} // ✅ ارسال عکس انتخابی
+        {/* ── Content ────────────────────────────────────────── */}
+        <div className="flex-1 overflow-hidden bg-white rounded-t-2xl">
+          <div className="h-full overflow-y-auto p-4 md:p-5">
+            {activeTab === 'upload'  && <ImageUploadTab tile={currentTile} externalImageSrc={stockSrc} />}
+            {activeTab === 'stock'   && <StockImagesTab onSelectImage={handlePickStock} />}
+            {activeTab === 'texture' && <TextureTab onSelectTexture={handlePickStock} />}
+            {activeTab === 'coating' && <CoatingTab activeCoatingId={null} onSelectCoating={handleCoating} />}
+            {activeTab === 'color'   && <ColorTab tile={currentTile} />}
+            {activeTab === 'text'    && (
+              <TextEditorTab
+                savedTextConfig={currentTile.textConfig}
+                onSave={handleSaveText}
+                onDelete={() => { updateTileText(editingTileId, null); close(); }}
               />
-            )}
-
-            {/* ✅ رندر تب جدید */}
-            {activeTab === 'stock' && (
-              <StockImagesTab onSelectImage={handleSelectStockImage} />
-            )}
-
-{activeTab === 'texture' && (
-              <TextureTab onSelectTexture={handleSelectImageSource} />
-            )}
-
-{activeTab === 'coating' && (
-              <CoatingTab 
-                activeCoatingId={currentCoatingId}
-                onSelectCoating={handleAutoApplyCoating} 
-              />
-            )}
-            
-            {activeTab === 'color' && (
-              <ColorTab tile={currentTile} />
-            )}
-
-            {activeTab === 'text' && (
-               <TextEditorTab 
-                 initialContent={currentTile.content?.type === 'text' ? currentTile.content.data.jsonContent : undefined}
-                 savedTextConfig={currentTile.textConfig} 
-                 onSave={handleSaveText}
-                 onCancel={handleClose}
-               />
             )}
           </div>
-          
-          <div className="h-20 md:hidden"></div>
         </div>
 
       </div>

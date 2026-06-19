@@ -1,34 +1,44 @@
-import React from 'react';
+// ============================================================
+// App.jsx — نسخه آپدیت‌شده با صفحه انتخاب اولیه
+// ============================================================
+import React, { useState } from 'react';
+import OnboardingPage from './Onboardingpage';
 import FabricCanvas from './components/Canvas/FabricCanvas';
 import Header from './components/UI/Header';
-import MobileToolbar from './components/UI/MobileToolbar'; // ✅ ایمپورت جدید
+import MobileToolbar from './components/UI/MobileToolbar';
 import TileEditModal from './components/UI/EditModal/TileEditModal';
 import SettingsModal from './components/UI/SettingsModal';
 
 function App() {
-  return (
-    <div className="flex flex-col h-screen w-screen bg-slate-50 overflow-hidden select-none touch-none"> 
-    {/* touch-none و select-none اضافه شد برای جلوگیری از رفتارهای ناخواسته مرورگر در ریشه برنامه */}
+  // false = صفحه انتخاب اولیه | true = ادیتور
+  const [editorReady, setEditorReady] = useState(false);
 
-      {/* 1. هدر دسکتاپ (فقط در صفحات مدیوم به بالا دیده می‌شود) */}
+  if (!editorReady) {
+    return <OnboardingPage onDone={() => setEditorReady(true)} />;
+  }
+
+  return (
+    <div className="flex flex-col h-screen w-screen bg-slate-50 overflow-hidden select-none touch-none">
+
+      {/* هدر دسکتاپ */}
       <div className="hidden md:block shrink-0">
         <Header />
       </div>
 
-      {/* 2. محیط بوم (Canvas) */}
+      {/* بوم */}
       <div className="flex-1 relative isolate overflow-hidden">
         <FabricCanvas />
       </div>
 
-      {/* 3. نوار ابزار موبایل (فقط در صفحات کوچک دیده می‌شود) */}
+      {/* نوار موبایل */}
       <div className="block md:hidden shrink-0 relative">
         <MobileToolbar />
       </div>
 
-      {/* 4. مودال‌ها (خارج از جریان صفحه) */}
+      {/* مودال‌ها */}
       <TileEditModal />
       <SettingsModal />
-      
+
     </div>
   );
 }

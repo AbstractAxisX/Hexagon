@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Check } from 'lucide-react'; // آیکون Layers مناسب روکش است
+import { Layers, Check } from 'lucide-react';
 import { APP_CONFIG } from '../../../../data/appConfig';
 
 const CoatingTab = ({ activeCoatingId, onSelectCoating }) => {
@@ -7,56 +7,41 @@ const CoatingTab = ({ activeCoatingId, onSelectCoating }) => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* هدر راهنما */}
-      <div className="mb-4 pb-2 border-b border-slate-100">
-        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <Layers size={16} className="text-purple-600"/>
-          انتخاب روکش محافظ
+      <div className="mb-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <Layers size={16} className="text-purple-600" />
+          روکش محافظ
         </h3>
-        <p className="text-xs text-slate-400 mt-1">
-          روکش‌های ویژه به صورت یکپارچه روی سطح تایل اعمال می‌شوند.
-        </p>
+        <p className="text-xs text-slate-400 mt-1">روکش‌های ویژه یکپارچه روی سطح کاشی اعمال می‌شوند.</p>
       </div>
 
-      {/* لیست روکش‌ها */}
-      <div className="grid grid-cols-2 gap-4">
-        {coatings.map((coating) => {
-          const isActive = activeCoatingId === coating.id;
-          
+      <div className="grid grid-cols-2 gap-3">
+        {coatings.map(coating => {
+          const active = activeCoatingId === coating.id;
           return (
             <button
               key={coating.id}
               onClick={() => onSelectCoating(coating)}
               className={`
-                relative flex items-center gap-3 p-3 rounded-xl border transition-all text-right group
-                ${isActive 
-                  ? 'border-purple-600 bg-purple-50 ring-1 ring-purple-600' 
-                  : 'border-slate-200 hover:border-purple-400 hover:bg-slate-50'
-                }
+                relative flex items-center gap-3 p-3 rounded-2xl border-2 text-right transition-all
+                ${active
+                  ? 'border-purple-500 bg-purple-50 shadow-sm shadow-purple-100'
+                  : 'border-slate-200 hover:border-purple-300 hover:bg-slate-50'}
               `}
             >
-              {/* پیش‌نمایش دایره‌ای روکش */}
-              <div 
+              <div
                 className="w-12 h-12 rounded-full border border-slate-200 shadow-sm shrink-0 bg-cover bg-center"
-                style={{ 
-                  backgroundImage: `url(${coating.textureUrl})`,
-                  backgroundColor: coating.previewColor 
-                }}
+                style={{ backgroundImage: `url(${coating.textureUrl})`, backgroundColor: coating.previewColor }}
               />
-              
               <div className="flex-1 min-w-0">
-                <span className={`block text-sm font-medium truncate ${isActive ? 'text-purple-700' : 'text-slate-700'}`}>
+                <span className={`block text-sm font-semibold truncate ${active ? 'text-purple-700' : 'text-slate-700'}`}>
                   {coating.name}
                 </span>
-                <span className="text-[10px] text-slate-400">
-                   {coating.type === 'special' ? 'روکش ویژه' : 'استاندارد'}
-                </span>
+                <span className="text-[10px] text-slate-400">روکش ویژه</span>
               </div>
-
-              {/* نشانگر انتخاب */}
-              {isActive && (
+              {active && (
                 <div className="absolute top-2 left-2 bg-purple-600 text-white rounded-full p-0.5">
-                  <Check size={12} />
+                  <Check size={11} />
                 </div>
               )}
             </button>

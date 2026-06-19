@@ -1,19 +1,20 @@
-import React from 'react'; // useRef و useState و useEffect حذف شدند چون دیگر نیاز نیستند
-import { Settings, Plus, Layout } from 'lucide-react'; // Palette و ChevronDown حذف شدند
+import React from 'react';
+import { Settings, Plus, Layout, Loader2 } from 'lucide-react';
 import useAppStore from '../../store/useAppStore';
 
 const Header = () => {
-  const globalSettings = useAppStore(state => state.globalSettings);
-  const setGlobalSetting = useAppStore(state => state.setGlobalSetting);
   const addTile = useAppStore(state => state.addTile);
-  
-  // ✅ فقط متد باز کردن مودال را می‌گیریم
   const setSettingsOpen = useAppStore(state => state.setSettingsOpen);
+  const totalPrice = useAppStore(state => state.totalPrice);
+  const isCalculating = useAppStore(state => state.isCalculating);
+  const tiles = useAppStore(state => state.tiles);
+
+  const formatted = new Intl.NumberFormat('fa-IR').format(totalPrice);
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm relative shrink-0">
-      
-      {/* === LOGO === */}
+
+      {/* LOGO */}
       <div className="flex items-center gap-3">
         <div className="bg-blue-600 p-2 rounded-lg text-white">
           <Layout size={20} />
@@ -23,41 +24,35 @@ const Header = () => {
         </h1>
       </div>
 
-      {/* === CENTER TOOLS === */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-100 p-1 rounded-xl flex items-center">
-        <ShapeBtn 
-          active={globalSettings.shape === 'hex'} 
-          onClick={() => setGlobalSetting('shape', 'hex')} 
-          label="شش‌ضلعی"
-          icon="⬡"
-        />
-        <ShapeBtn 
-          active={globalSettings.shape === 'square'} 
-          onClick={() => setGlobalSetting('shape', 'square')} 
-          label="مربع"
-          icon="▢"
-        />
-        <ShapeBtn 
-          active={globalSettings.shape === 'circle'} 
-          onClick={() => setGlobalSetting('shape', 'circle')} 
-          label="دایره"
-          icon="●"
-        />
+      {/* CENTER: قیمت لحظه‌ای */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        {tiles.length === 0 ? (
+          <span className="text-sm text-slate-400">هنوز کاشی‌ای اضافه نشده</span>
+        ) : isCalculating ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">در حال محاسبه...</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 bg-slate-100 px-5 py-2 rounded-xl">
+            <span className="text-sm text-slate-500">قیمت کل:</span>
+            <span className="text-base font-bold text-blue-600 tabular-nums">{formatted}</span>
+            <span className="text-xs text-slate-400">تومان</span>
+          </div>
+        )}
       </div>
 
-      {/* === RIGHT ACTIONS === */}
+      {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-3">
-        
-        {/* SETTINGS BUTTON (Updated) */}
-        <button 
-          onClick={() => setSettingsOpen(true)} // ✅ باز کردن مودال مرکزی
+        <button
+          onClick={() => setSettingsOpen(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-all"
         >
           <Settings size={18} />
           <span className="text-sm font-medium">تنظیمات</span>
         </button>
 
-        <div className="w-px h-8 bg-slate-200 mx-1"></div>
+        <div className="w-px h-8 bg-slate-200 mx-1" />
 
         <button
           onClick={() => addTile()}
@@ -70,21 +65,5 @@ const Header = () => {
     </header>
   );
 };
-
-const ShapeBtn = ({ active, onClick, label, icon }) => (
-  <button
-    onClick={onClick}
-    className={`
-      flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all
-      ${active 
-        ? 'bg-white text-blue-600 shadow-sm' 
-        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
-      }
-    `}
-  >
-    <span className="text-lg leading-none">{icon}</span>
-    {label}
-  </button>
-);
 
 export default Header;
