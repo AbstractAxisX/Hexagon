@@ -50,6 +50,22 @@ export const HexTile = {
     }
 
     // ---------------------------------------------------------
+    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی
+    // (هر بار یه نمونه تازه لازمه، fabric اجازه‌ی استفاده مجدد یه
+    // clipPath روی چند آبجکت رو نمی‌ده)
+    // ---------------------------------------------------------
+    const makeShapeClip = () => {
+      if (isRounded) {
+        return new fabric.Path(getHexPathData(cornerRadius), {
+          originX: 'center', originY: 'center',
+        });
+      }
+      return new fabric.Polygon(getHexPoints(), {
+        originX: 'center', originY: 'center',
+      });
+    };
+
+    // ---------------------------------------------------------
     // ۲. مدیریت لایه‌های متن
     // ---------------------------------------------------------
     const textObjects = [];
@@ -84,7 +100,19 @@ export const HexTile = {
                     offsetY: (layer.shadowOffsetY || 0) / scaleFactor
                 }) : null,
                 selectable: false,
-                evented: false
+                evented: false,
+
+                // ✅ فیکس: متن هیچ‌وقت از مرز شکل کاشی بیرون نمی‌زنه
+                // چون clipPath نسبت به مرکز گروه محاسبه میشه (نه نسبت به خود متن)،
+                // باید موقعیت متن رو از clipPath کم کنیم تا هم‌راستا بمونن.
+                clipPath: (() => {
+                  const clip = makeShapeClip();
+                  clip.set({
+                    left: -relX,
+                    top: -relY,
+                  });
+                  return clip;
+                })(),
             });
             textObjects.push(textObj);
         });
@@ -103,7 +131,9 @@ export const HexTile = {
                 originY: 'center',
                 splitByGrapheme: true,
                 selectable: false,
-                evented: false
+                evented: false,
+                // ✅ فیکس: همین‌جا هم محدود به شکل کاشی
+                clipPath: makeShapeClip(),
             });
             textObjects.push(legacyText);
         }

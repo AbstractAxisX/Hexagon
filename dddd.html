@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سپهر | سامانه یکپارچه مدیریت سازمانی</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/jalaali-js@1.2.7/dist/jalaali.min.js"></script>
+
+<script>
+tailwind.config = {
+  theme: { extend: { fontFamily: { sans: ['Vazirmatn', 'system-ui', 'sans-serif'] } } }
+}
+</script>
+
+<style>
+* { font-family: 'Vazirmatn', sans-serif; }
+[x-cloak] { display: none !important; }
+body { background: #f1f5f9; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.sidebar-bg { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }
+
+@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+.fade-in { animation: slideIn 0.3s ease-out; }
+
+@keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.modal-in { animation: modalIn 0.2s ease-out; }
+
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+[data-lucide] { width: 18px; height: 18px; stroke-width: 2; }
+
+.kanban-card { transition: transform 0.15s, box-shadow 0.15s; cursor: grab; }
+.kanban-card:hover { transform: translateY(-2px); }
+.kanban-card.dragging { opacity: 0.4; transform: rotate(2deg); }
+.drag-over { background: rgba(6, 182, 212, 0.08) !important; border-color: #06b6d4 !important; }
+
+.btn-primary { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+.btn-primary:hover { box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35); transform: translateY(-1px); }
+.btn-secondary { background: white; color: #475569; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; border: 1px solid #e2e8f0; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+.btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+.input { width: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 14px; transition: all 0.2s; }
+.input:focus { outline: none; border-color: #06b6d4; box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15); }
+
+.card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
+
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::before { content: ''; position: absolute; top: -20px; right: -20px; width: 120px; height: 120px; border-radius: 50%; filter: blur(40px); opacity: 0.18; }
+.stat-card.cyan::before { background: #06b6d4; }
+.stat-card.rose::before { background: #f43f5e; }
+.stat-card.emerald::before { background: #10b981; }
+.stat-card.amber::before { background: #f59e0b; }
+
+table { border-collapse: collapse; }
+.data-table th { background: #f8fafc; font-weight: 500; font-size: 13px; color: #64748b; text-align: right; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.data-table td { padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+.data-table tr:hover td { background: #f8fafc; }
+.data-table tr:last-child td { border-bottom: none; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.badge-success { background: #d1fae5; color: #065f46; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger { background: #fee2e2; color: #991b1b; }
+.badge-info { background: #cffafe; color: #155e75; }
+.badge-secondary { background: #f1f5f9; color: #475569; }
+
+.glow-text { text-shadow: 0 0 20px rgba(6, 182, 212, 0.4); }
+
+@media print {
+  body * { visibility: hidden; }
+}
+</style>
+</head>
+
+<body class="text-slate-800" x-data="erpApp()" x-init="init()" :class="{ 'overflow-hidden': modal.open }">
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="sidebar-bg w-64 flex-shrink-0 text-slate-300 flex flex-col transition-all duration-300" :class="{ 'w-20': sidebarCollapsed }">
+    <div class="h-16 flex items-center gap-3 px-5 border-b border-slate-700/50 flex-shrink-0">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-500/20">
+        <i data-lucide="boxes" class="text-white" style="width: 22px; height: 22px;"></i>
+      </div>
+      <div x-show="!sidebarCollapsed" class="overflow-hidden">
+        <div class="font-bold text-white text-base leading-tight">سپهر ERP</div>
+        <div class="text-[11px] text-slate-400">سامانه یکپارچه سازمانی</div>
+      </div>
+    </div>
+    
+    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <template x-for="item in navItems" :key="item.id">
+        <div>
+          <template x-if="item.children">
+            <div>
+              <button @click="toggleGroup(item)" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm hover:bg-slate-800/70 text-slate-400 transition-colors">
+                <i :data-lucide="item.icon" class="flex-shrink-0"></i>
+                <span x-show="!sidebarCollapsed" class="flex-1 text-right" x-text="item.label"></span>
+                <i x-show="!sidebarCollapsed" :class="item.open ? 'rotate-90' : ''" class="transition-transform" data-lucide="chevron-left" style="width: 14px; height: 14px;"></i>
+              </button>
+              <div x-show="item.open && !sidebarCollapsed" x-collapse>
+                <div class="mt-1 mr-4 space-y-1 border-r border-slate-700/50 pr-3">
+                  <template x-for="child in item.children" :key="child.view">
+                    <button @click="setView(child.view)" class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-colors"
+                      :class="currentView === child.view ? 'bg-cyan-500/10 text-cyan-400 font-medium' : 'text-slate-400 hover:bg-slate-800/50'">
+                      <i :data-lucide="child.icon" style="width: 14px; height: 14px;"></i>
+                      <span x-text="child.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+          <template x-if="!item.children">
+            <button @click="setView(item.view)" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all"
+              :class="currentView === item.view ? 'bg-gradient-to-l from-cyan-500/20 to-transparent text-cyan-400 border-r-2 border-cyan-400' : 'text-slate-400 hover:bg-slate-800/70'">
+              <i :data-lucide="item.icon" class="flex-shrink-0"></i>
+              <span x-show="!sidebarCollapsed" x-text="item.label"></span>
+            </button>
+          </template>
+        </div>
+      </template>
+    </nav>
+    
+    <div class="p-3 border-t border-slate-700/50 flex-shrink-0">
+      <button @click="sidebarCollapsed = !sidebarCollapsed" class="w-full flex items-center justify-center gap-2 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+        <i data-lucide="chevrons-right" :class="sidebarCollapsed ? '' : 'rotate-180'" style="width: 16px; height: 16px;"></i>
+        <span x-show="!sidebarCollapsed">جمع کردن منو</span>
+      </button>
+    </div>
+  </aside>
+  
+  <!-- ============== MAIN ============== -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="h-16 bg-white border-b border-slate-200 flex items-center gap-4 px-6 flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <h1 class="text-base font-bold text-slate-800" x-text="currentTitle"></h1>
+        <span class="text-xs text-slate-400 hidden md:inline" x-text="currentSubtitle"></span>
+      </div>
+      
+      <div class="flex-1 max-w-md mr-auto relative">
+        <i data-lucide="search" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input type="text" x-model="search" placeholder="جستجوی فاکتور، مشتری، محصول..." 
+          class="w-full bg-slate-100 rounded-lg pr-10 pl-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:bg-white transition-all">
+      </div>
+      
+      <button @click="setView('tasks')" class="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
+        <i data-lucide="bell" class="text-slate-600" style="width: 20px; height: 20px;"></i>
+        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
+      </button>
+      
+      <div class="h-8 w-px bg-slate-200"></div>
+      
+      <div class="flex items-center gap-3">
+        <div class="text-left">
+          <div class="text-sm font-medium text-slate-800">رضا محمدی</div>
+          <div class="text-[11px] text-slate-500">مدیر سیستم</div>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center text-white font-bold shadow-md">ر.م</div>
+      </div>
+    </header>
+    
+    <main class="flex-1 overflow-y-auto p-6">
+      
+      <!-- ===== DASHBOARD ===== -->
+      <template x-if="currentView === 'dashboard'">
+        <div class="space-y-6 fade-in" x-init="$nextTick(() => { setTimeout(() => initDashboardCharts(), 100); setTimeout(() => lucide.createIcons(), 50); })">
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card stat-card cyan p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-sm text-slate-500 mb-1">فروش کل</div>
+                  <div class="text-2xl font-bold text-slate-800" x-text="formatMoney(stats.totalSales)"></div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center">
+                  <i data-lucide="trending-up" class="text-cyan-600"></i>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-emerald-600 flex items-center gap-1 font-medium">
+                  <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i> ۱۲٪
+                </span>
+                <span class="text-slate-400">نسبت به ماه گذشته</span>
+              </div>
+            </div>
+            
+            <div class="card stat-card rose p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-sm text-slate-500 mb-1">هزینه‌ها</div>
+                  <div class="text-2xl font-bold text-slate-800" x-text="formatMoney(stats.totalExpenses)"></div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                  <i data-lucide="trending-down" class="text-rose-600"></i>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-rose-600 flex items-center gap-1 font-medium">
+                  <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i> ۴٪
+                </span>
+                <span class="text-slate-400">نسبت به ماه گذشته</span>
+              </div>
+            </div>
+            
+            <div class="card stat-card emerald p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-sm text-slate-500 mb-1">سود خالص</div>
+                  <div class="text-2xl font-bold text-slate-800" x-text="formatMoney(stats.profit)"></div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <i data-lucide="wallet" class="text-emerald-600"></i>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-emerald-600 flex items-center gap-1 font-medium">
+                  <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i> ۸٪
+                </span>
+                <span class="text-slate-400">رشد سود</span>
+              </div>
+            </div>
+            
+            <div class="card stat-card amber p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-sm text-slate-500 mb-1">فاکتورهای معوق</div>
+                  <div class="text-2xl font-bold text-slate-800" x-text="toFa(stats.pendingInvoices)"></div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <i data-lucide="file-warning" class="text-amber-600"></i>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-amber-600 font-medium" x-text="toFa(stats.pendingInvoices) + ' فاکتور'"></span>
+                <span class="text-slate-400">نیاز به پیگیری</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-5 lg:col-span-2">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="font-bold text-slate-800">روند فروش و هزینه</h3>
+                  <p class="text-xs text-slate-500">۶ ماه اخیر (به تومان)</p>
+                </div>
+                <div class="flex gap-2">
+                  <button class="px-3 py-1 text-xs rounded-lg bg-cyan-50 text-cyan-600 font-medium">ماهانه</button>
+                </div>
+              </div>
+              <div class="h-64"><canvas id="salesChart"></canvas></div>
+            </div>
+            
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-1">فروش به تفکیک دسته</h3>
+              <p class="text-xs text-slate-500 mb-4">سهم هر دسته از فروش</p>
+              <div class="h-64 flex items-center justify-center"><canvas id="categoryChart"></canvas></div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-5 lg:col-span-2">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-slate-800">فاکتورهای اخیر</h3>
+                <button @click="setView('invoices')" class="text-xs text-cyan-600 hover:underline flex items-center gap-1">
+                  مشاهده همه
+                  <i data-lucide="arrow-left" style="width: 12px; height: 12px;"></i>
+                </button>
+              </div>
+              <div class="overflow-x-auto -mx-5">
+                <table class="w-full data-table">
+                  <thead>
+                    <tr>
+                      <th>شماره</th><th>مشتری</th><th>مبلغ</th><th>تاریخ</th><th>وضعیت</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="inv in data.invoices.slice(-5).reverse()" :key="inv.id">
+                      <tr>
+                        <td class="font-medium text-cyan-600" x-text="inv.number"></td>
+                        <td x-text="getCustomerName(inv.customerId)"></td>
+                        <td class="font-medium" x-text="formatMoney(invoiceTotal(inv))"></td>
+                        <td class="text-slate-500" x-text="toJalali(inv.date)"></td>
+                        <td><span class="badge" :class="invoiceStatusBadge(inv.status)" x-text="invoiceStatusText(inv.status)"></span></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="space-y-6">
+              <div class="card p-5">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-bold text-slate-800">محصولات کم‌موجود</h3>
+                  <span class="badge badge-danger" x-text="toFa(stats.lowStockProducts) + ' مورد'"></span>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="p in data.products.filter(p => p.stock <= p.minStock).slice(0, 4)" :key="p.id">
+                    <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
+                      <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <i data-lucide="package" class="text-slate-500" style="width: 14px; height: 14px;"></i>
+                        </div>
+                        <div>
+                          <div class="text-sm font-medium" x-text="p.name"></div>
+                          <div class="text-[11px] text-slate-500" x-text="p.sku"></div>
+                        </div>
+                      </div>
+                      <div class="text-left">
+                        <div class="text-sm font-bold text-rose-600" x-text="toFa(p.stock) + ' ' + p.unit"></div>
+                        <div class="text-[10px] text-slate-400" x-text="'حداکثر: ' + toFa(p.minStock)"></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="data.products.filter(p => p.stock <= p.minStock).length === 0" class="text-center py-4 text-sm text-slate-400">
+                    همه محصولات موجود هستند
+                  </div>
+                </div>
+              </div>
+              
+              <div class="card p-5">
+                <h3 class="font-bold text-slate-800 mb-3">وظایف در جریان</h3>
+                <div class="space-y-2">
+                  <template x-for="t in data.tasks.filter(t => t.status !== 'done').slice(0, 4)" :key="t.id">
+                    <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50">
+                      <input type="checkbox" @change="completeTask(t.id)" class="rounded text-cyan-500">
+                      <div class="flex-1">
+                        <div class="text-sm" x-text="t.title"></div>
+                        <div class="text-[11px] text-slate-500" x-text="t.assignee"></div>
+                      </div>
+                      <span class="badge" :class="priorityBadge(t.priority)" x-text="priorityText(t.priority)"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== INVOICES ===== -->
+      <template x-if="currentView === 'invoices'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3 flex-wrap">
+            <button @click="openInvoiceModal()" class="btn-primary">
+              <i data-lucide="plus"></i> فاکتور جدید
+            </button>
+            <button @click="exportInvoices()" class="btn-secondary">
+              <i data-lucide="download"></i> خروجی JSON
+            </button>
+            <div class="flex-1"></div>
+            <select x-model="invoiceFilter.status" class="input max-w-[150px]">
+              <option value="">همه وضعیت‌ها</option>
+              <option value="paid">پرداخت شده</option>
+              <option value="pending">در انتظار</option>
+              <option value="overdue">معوق</option>
+              <option value="draft">پیش‌نویس</option>
+            </select>
+          </div>
+          
+          <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full data-table">
+                <thead>
+                  <tr>
+                    <th>شماره فاکتور</th><th>مشتری</th><th>تاریخ</th><th>سررسید</th><th>مبلغ کل</th><th>وضعیت</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="inv in filteredInvoices" :key="inv.id">
+                    <tr>
+                      <td class="font-bold text-cyan-600" x-text="inv.number"></td>
+                      <td>
+                        <div class="flex items-center gap-2">
+                          <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600" x-text="getCustomerName(inv.customerId)?.charAt(0)"></div>
+                          <span x-text="getCustomerName(inv.customerId)"></span>
+                        </div>
+                      </td>
+                      <td class="text-slate-500" x-text="toJalali(inv.date)"></td>
+                      <td class="text-slate-500" x-text="toJalali(inv.dueDate)"></td>
+                      <td class="font-bold" x-text="formatMoney(invoiceTotal(inv))"></td>
+                      <td><span class="badge" :class="invoiceStatusBadge(inv.status)" x-text="invoiceStatusText(inv.status)"></span></td>
+                      <td>
+                        <div class="flex gap-1">
+                          <button @click="viewInvoice(inv)" class="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="مشاهده">
+                            <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                          </button>
+                          <button @click="openInvoiceModal(inv)" class="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="ویرایش">
+                            <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                          </button>
+                          <button @click="printInvoice(inv)" class="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="چاپ">
+                            <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                          </button>
+                          <button @click="deleteInvoice(inv.id)" class="p-1.5 hover:bg-rose-50 rounded text-rose-500" title="حذف">
+                            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div x-show="filteredInvoices.length === 0" class="text-center py-12 text-slate-400">
+              <i data-lucide="file-text" style="width: 48px; height: 48px; margin: 0 auto;" class="mb-2 opacity-30"></i>
+              <p>هیچ فاکتوری یافت نشد</p>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== CUSTOMERS ===== -->
+      <template x-if="currentView === 'customers'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openCustomerModal()" class="btn-primary">
+              <i data-lucide="user-plus"></i> مشتری جدید
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="c in data.customers" :key="c.id">
+              <div class="card p-5 hover:shadow-lg transition-shadow">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 flex items-center justify-center text-white font-bold" x-text="c.name.charAt(0)"></div>
+                    <div>
+                      <div class="font-bold text-slate-800" x-text="c.name"></div>
+                      <div class="text-xs text-slate-500" x-text="c.code"></div>
+                    </div>
+                  </div>
+                  <div class="flex gap-1">
+                    <button @click="openCustomerModal(c)" class="p-1 hover:bg-slate-100 rounded text-slate-500">
+                      <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button @click="deleteCustomer(c.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                      <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="space-y-2 text-sm">
+                  <div class="flex items-center gap-2 text-slate-600">
+                    <i data-lucide="phone" style="width: 14px; height: 14px;"></i>
+                    <span x-text="c.phone"></span>
+                  </div>
+                  <div class="flex items-center gap-2 text-slate-600">
+                    <i data-lucide="mail" style="width: 14px; height: 14px;"></i>
+                    <span x-text="c.email" class="truncate"></span>
+                  </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="text-xs text-slate-500">تعداد فاکتور</div>
+                    <div class="font-bold text-slate-800" x-text="toFa(customerStats(c.id).count)"></div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-slate-500">مجموع خرید</div>
+                    <div class="font-bold text-cyan-600 text-sm" x-text="formatMoney(customerStats(c.id).total)"></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== PRODUCTS ===== -->
+      <template x-if="currentView === 'products'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openProductModal()" class="btn-primary">
+              <i data-lucide="plus"></i> محصول جدید
+            </button>
+            <div class="flex-1"></div>
+            <select x-model="productFilter.category" class="input max-w-[180px]">
+              <option value="">همه دسته‌ها</option>
+              <template x-for="cat in productCategories" :key="cat">
+                <option :value="cat" x-text="cat"></option>
+              </template>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <template x-for="p in filteredProducts" :key="p.id">
+              <div class="card p-4 hover:shadow-lg transition-shadow">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-50 to-emerald-50 flex items-center justify-center">
+                    <i data-lucide="package" class="text-cyan-600"></i>
+                  </div>
+                  <div class="flex gap-1">
+                    <button @click="openProductModal(p)" class="p-1 hover:bg-slate-100 rounded text-slate-500">
+                      <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button @click="deleteProduct(p.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                      <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="font-bold text-slate-800" x-text="p.name"></div>
+                  <div class="text-xs text-slate-500" x-text="p.sku + ' | ' + p.category"></div>
+                </div>
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <div>
+                    <div class="text-xs text-slate-500">قیمت فروش</div>
+                    <div class="font-bold text-cyan-600 text-sm" x-text="formatMoney(p.price)"></div>
+                  </div>
+                  <div class="text-left">
+                    <div class="text-xs text-slate-500">موجودی</div>
+                    <div class="font-bold" :class="p.stock <= p.minStock ? 'text-rose-600' : 'text-emerald-600'" x-text="toFa(p.stock) + ' ' + p.unit"></div>
+                  </div>
+                </div>
+                <div class="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" 
+                    :class="p.stock <= p.minStock ? 'bg-rose-500' : p.stock <= p.minStock * 2 ? 'bg-amber-500' : 'bg-emerald-500'"
+                    :style="'width: ' + Math.min(100, (p.stock / Math.max(p.minStock * 3, 1)) * 100) + '%'"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== STOCK ===== -->
+      <template x-if="currentView === 'stock'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 mb-4">موجودی فعلی انبار</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <template x-for="p in data.products" :key="p.id">
+                <div class="border border-slate-200 rounded-lg p-3">
+                  <div class="text-sm font-medium mb-2" x-text="p.name"></div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-500">موجودی:</span>
+                    <span class="font-bold" :class="p.stock <= p.minStock ? 'text-rose-600' : 'text-emerald-600'" x-text="toFa(p.stock) + ' ' + p.unit"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+          
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 mb-4">آخرین حرکات انبار</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full data-table">
+                <thead>
+                  <tr><th>تاریخ</th><th>محصول</th><th>نوع حرکت</th><th>تعداد</th><th>مبدا/مقصد</th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="m in stockMovements()" :key="m.id">
+                    <tr>
+                      <td class="text-slate-500" x-text="toJalali(m.date)"></td>
+                      <td class="font-medium" x-text="m.product"></td>
+                      <td><span class="badge" :class="m.type === 'out' ? 'badge-danger' : 'badge-success'" x-text="m.type === 'out' ? 'خروج' : 'ورود'"></span></td>
+                      <td x-text="toFa(m.qty)"></td>
+                      <td class="text-slate-500" x-text="m.ref"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== PURCHASES ===== -->
+      <template x-if="currentView === 'purchases'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openPurchaseModal()" class="btn-primary">
+              <i data-lucide="plus"></i> سفارش خرید جدید
+            </button>
+          </div>
+          <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full data-table">
+                <thead>
+                  <tr><th>شماره سفارش</th><th>تامین‌کننده</th><th>تاریخ</th><th>تعداد اقلام</th><th>مبلغ کل</th><th>وضعیت</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="p in data.purchases" :key="p.id">
+                    <tr>
+                      <td class="font-bold text-cyan-600" x-text="p.number"></td>
+                      <td x-text="getSupplierName(p.supplierId)"></td>
+                      <td class="text-slate-500" x-text="toJalali(p.date)"></td>
+                      <td x-text="toFa(p.items.length) + ' قلم'"></td>
+                      <td class="font-bold" x-text="formatMoney(purchaseTotal(p))"></td>
+                      <td><span class="badge" :class="p.status === 'received' ? 'badge-success' : 'badge-warning'" x-text="p.status === 'received' ? 'دریافت شده' : 'در انتظار'"></span></td>
+                      <td>
+                        <button @click="deletePurchase(p.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== SUPPLIERS ===== -->
+      <template x-if="currentView === 'suppliers'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openSupplierModal()" class="btn-primary">
+              <i data-lucide="plus"></i> تامین‌کننده جدید
+            </button>
+          </div>
+          <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full data-table">
+                <thead>
+                  <tr><th>نام</th><th>کد</th><th>تلفن</th><th>ایمیل</th><th>آدرس</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="s in data.suppliers" :key="s.id">
+                    <tr>
+                      <td class="font-medium" x-text="s.name"></td>
+                      <td class="text-slate-500" x-text="s.code"></td>
+                      <td x-text="s.phone"></td>
+                      <td class="text-slate-500" x-text="s.email"></td>
+                      <td class="text-slate-500 truncate max-w-xs" x-text="s.address"></td>
+                      <td>
+                        <div class="flex gap-1">
+                          <button @click="openSupplierModal(s)" class="p-1 hover:bg-slate-100 rounded text-slate-500">
+                            <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                          </button>
+                          <button @click="deleteSupplier(s.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== EXPENSES ===== -->
+      <template x-if="currentView === 'expenses'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => { setTimeout(() => initExpenseChart(), 100); lucide.createIcons(); })">
+          <div class="card p-4 flex items-center gap-3 flex-wrap">
+            <button @click="openExpenseModal()" class="btn-primary">
+              <i data-lucide="plus"></i> ثبت هزینه
+            </button>
+            <div class="flex-1"></div>
+            <div class="text-sm text-slate-500">
+              مجموع هزینه‌ها: 
+              <span class="font-bold text-rose-600" x-text="formatMoney(data.expenses.reduce((s,e) => s+e.amount, 0))"></span>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-5 lg:col-span-2">
+              <h3 class="font-bold text-slate-800 mb-4">فهرست هزینه‌ها</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full data-table">
+                  <thead>
+                    <tr><th>عنوان</th><th>دسته</th><th>تاریخ</th><th>مبلغ</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="e in data.expenses" :key="e.id">
+                      <tr>
+                        <td class="font-medium" x-text="e.title"></td>
+                        <td><span class="badge badge-info" x-text="e.category"></span></td>
+                        <td class="text-slate-500" x-text="toJalali(e.date)"></td>
+                        <td class="font-bold text-rose-600" x-text="formatMoney(e.amount)"></td>
+                        <td>
+                          <div class="flex gap-1">
+                            <button @click="openExpenseModal(e)" class="p-1 hover:bg-slate-100 rounded text-slate-500">
+                              <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                            <button @click="deleteExpense(e.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-4">هزینه‌ها به تفکیک دسته</h3>
+              <div class="h-64"><canvas id="expenseChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== REPORTS ===== -->
+      <template x-if="currentView === 'reports'">
+        <div class="space-y-6 fade-in" x-init="$nextTick(() => { setTimeout(() => initReportCharts(), 100); lucide.createIcons(); })">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-4">درآمد در برابر هزینه (سال جاری)</h3>
+              <div class="h-72"><canvas id="monthlyChart"></canvas></div>
+            </div>
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-4">سهم هزینه‌ها به تفکیک دسته</h3>
+              <div class="h-72"><canvas id="expensePieChart"></canvas></div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-4">۱۰ محصول پرفروش</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full data-table">
+                  <thead>
+                    <tr><th>#</th><th>محصول</th><th>تعداد فروش</th><th>درآمد</th></tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="(p, i) in topProducts(10)" :key="p.product?.id">
+                      <tr>
+                        <td class="font-bold text-slate-400" x-text="toFa(i + 1)"></td>
+                        <td class="font-medium" x-text="p.product?.name || '-'"></td>
+                        <td x-text="toFa(p.qty) + ' عدد'"></td>
+                        <td class="font-bold text-cyan-600" x-text="formatMoney(p.revenue)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card p-5">
+              <h3 class="font-bold text-slate-800 mb-4">۵ مشتری برتر</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full data-table">
+                  <thead>
+                    <tr><th>#</th><th>مشتری</th><th>تعداد فاکتور</th><th>مجموع خرید</th></tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="(c, i) in topCustomers(5)" :key="c.customer?.id">
+                      <tr>
+                        <td class="font-bold text-slate-400" x-text="toFa(i + 1)"></td>
+                        <td class="font-medium" x-text="c.customer?.name || '-'"></td>
+                        <td x-text="toFa(c.count)"></td>
+                        <td class="font-bold text-emerald-600" x-text="formatMoney(c.total)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== EMPLOYEES ===== -->
+      <template x-if="currentView === 'employees'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openEmployeeModal()" class="btn-primary">
+              <i data-lucide="user-plus"></i> کارمند جدید
+            </button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <template x-for="emp in data.employees" :key="emp.id">
+              <div class="card p-5 text-center">
+                <div class="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3" x-text="emp.name.charAt(0)"></div>
+                <h3 class="font-bold text-slate-800" x-text="emp.name"></h3>
+                <p class="text-sm text-cyan-600 mb-3" x-text="emp.position"></p>
+                <div class="space-y-1 text-xs text-slate-500 mb-3">
+                  <div class="flex items-center justify-center gap-1">
+                    <i data-lucide="phone" style="width: 12px; height: 12px;"></i>
+                    <span x-text="emp.phone"></span>
+                  </div>
+                  <div class="flex items-center justify-center gap-1">
+                    <i data-lucide="mail" style="width: 12px; height: 12px;"></i>
+                    <span x-text="emp.email"></span>
+                  </div>
+                </div>
+                <div class="pt-3 border-t border-slate-100">
+                  <div class="text-xs text-slate-500">حقوق ماهانه</div>
+                  <div class="font-bold text-slate-800 text-sm" x-text="formatMoney(emp.salary)"></div>
+                </div>
+                <div class="flex gap-1 mt-3">
+                  <button @click="openEmployeeModal(emp)" class="flex-1 btn-secondary text-xs justify-center">
+                    <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                  </button>
+                  <button @click="deleteEmployee(emp.id)" class="px-3 py-2 text-rose-500 hover:bg-rose-50 rounded-lg">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== PROJECTS ===== -->
+      <template x-if="currentView === 'projects'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3">
+            <button @click="openProjectModal()" class="btn-primary">
+              <i data-lucide="plus"></i> پروژه جدید
+            </button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="p in data.projects" :key="p.id">
+              <div class="card p-5">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="flex-1">
+                    <h3 class="font-bold text-slate-800 mb-1" x-text="p.name"></h3>
+                    <p class="text-xs text-slate-500" x-text="p.customer"></p>
+                  </div>
+                  <div class="flex gap-1">
+                    <button @click="openProjectModal(p)" class="p-1 hover:bg-slate-100 rounded text-slate-500">
+                      <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button @click="deleteProject(p.id)" class="p-1 hover:bg-rose-50 rounded text-rose-500">
+                      <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="text-slate-500">پیشرفت پروژه</span>
+                    <span class="font-bold text-cyan-600" x-text="toFa(p.progress) + '٪'"></span>
+                  </div>
+                  <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-l from-cyan-500 to-emerald-500 rounded-full transition-all" :style="'width: ' + p.progress + '%'"></div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                  <div>
+                    <div class="text-xs text-slate-500">بودجه</div>
+                    <div class="text-sm font-bold" x-text="formatMoney(p.budget)"></div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-slate-500">ددلاین</div>
+                    <div class="text-sm font-bold text-slate-700" x-text="toJalali(p.deadline)"></div>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-100">
+                  <div class="text-xs text-slate-500 mb-2">وظایف پروژه</div>
+                  <div class="flex flex-wrap gap-1">
+                    <template x-for="t in data.tasks.filter(t => t.projectId === p.id)" :key="t.id">
+                      <span class="badge" :class="t.status === 'done' ? 'badge-success' : 'badge-secondary'" x-text="t.title"></span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== TASKS (KANBAN) ===== -->
+      <template x-if="currentView === 'tasks'">
+        <div class="space-y-4 fade-in" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-4 flex items-center gap-3 flex-wrap">
+            <button @click="openTaskModal()" class="btn-primary">
+              <i data-lucide="plus"></i> وظیفه جدید
+            </button>
+            <div class="flex-1"></div>
+            <select x-model="taskFilter.projectId" class="input max-w-[200px]">
+              <option value="">همه پروژه‌ها</option>
+              <template x-for="p in data.projects" :key="p.id">
+                <option :value="p.id" x-text="p.name"></option>
+              </template>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <template x-for="col in taskColumns" :key="col.status">
+              <div class="card p-4" 
+                @dragover.prevent="$el.classList.add('drag-over')"
+                @dragleave="$el.classList.remove('drag-over')"
+                @drop="onDropTask($event, col.status)">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full" :class="col.color"></div>
+                    <h3 class="font-bold text-slate-800" x-text="col.title"></h3>
+                  </div>
+                  <span class="badge badge-secondary" x-text="toFa(filteredTasks.filter(t => t.status === col.status).length)"></span>
+                </div>
+                <div class="space-y-2 min-h-[200px]">
+                  <template x-for="t in filteredTasks.filter(t => t.status === col.status)" :key="t.id">
+                    <div draggable="true" @dragstart="onDragStartTask($event, t.id)" 
+                      class="kanban-card bg-white border border-slate-200 rounded-lg p-3 hover:shadow-md">
+                      <div class="flex items-start justify-between mb-2">
+                        <h4 class="text-sm font-medium text-slate-800" x-text="t.title"></h4>
+                        <div class="flex gap-1">
+                          <button @click="openTaskModal(t)" class="p-0.5 hover:bg-slate-100 rounded">
+                            <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                          </button>
+                          <button @click="deleteTask(t.id)" class="p-0.5 hover:bg-rose-50 rounded text-rose-500">
+                            <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <p x-show="t.description" class="text-xs text-slate-500 mb-2" x-text="t.description"></p>
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="badge" :class="priorityBadge(t.priority)" x-text="priorityText(t.priority)"></span>
+                        <div class="flex items-center gap-1 text-slate-500">
+                          <div class="w-5 h-5 rounded-full bg-cyan-100 flex items-center justify-center text-[10px] font-bold text-cyan-700" x-text="t.assignee?.charAt(0)"></div>
+                          <span x-text="t.assignee"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="filteredTasks.filter(t => t.status === col.status).length === 0" class="text-center py-8 text-slate-300 text-xs">
+                    کارتی اینجا نیست
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+      
+      <!-- ===== SETTINGS ===== -->
+      <template x-if="currentView === 'settings'">
+        <div class="space-y-4 fade-in max-w-3xl" x-init="$nextTick(() => lucide.createIcons())">
+          <div class="card p-6">
+            <h3             class="font-bold text-slate-800 mb-4">تنظیمات سیستم</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm text-slate-600 mb-1">نام شرکت</label>
+                <input type="text" x-model="settings.companyName" class="input">
+              </div>
+              <div>
+                <label class="block text-sm text-slate-600 mb-1">شناسه ملی / اقتصادی</label>
+                <input type="text" x-model="settings.companyId" class="input">
+              </div>
+              <div class="flex gap-3 pt-4">
+                <button @click="saveSettings()" class="btn-primary">
+                  <i data-lucide="save"></i> ذخیره تنظیمات
+                </button>
+                <button @click="resetData()" class="btn-secondary text-rose-600 border-rose-200 hover:bg-rose-50">
+                  <i data-lucide="trash-2"></i> بازنشانی کامل سیستم (پاک کردن داده‌ها)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============== GLOBAL MODAL ============== -->
+<div x-show="modal.open" x-cloak class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click.self="closeModal()" @keydown.escape.window="closeModal()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto modal-in" x-show="modal.open" x-transition>
+    
+    <div class="flex items-center justify-between p-5 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl z-10">
+      <h2 class="font-bold text-slate-800 text-lg" x-text="modal.title"></h2>
+      <button @click="closeModal()" class="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+        <i data-lucide="x" class="text-slate-500"></i>
+      </button>
+    </div>
+    
+    <div class="p-6 space-y-4">
+      
+      <!-- Customer Form -->
+      <template x-if="modal.type === 'customer'">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-sm text-slate-600 mb-1">نام مشتری / شرکت</label>
+            <input type="text" x-model="modal.data.name" class="input" placeholder="مثلا: علی رضایی یا شرکت پارس">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">کد مشتری</label>
+            <input type="text" x-model="modal.data.code" class="input" placeholder="C-1001">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">تلفن</label>
+            <input type="text" x-model="modal.data.phone" class="input" placeholder="09123456789">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">ایمیل</label>
+            <input type="email" x-model="modal.data.email" class="input" placeholder="email@example.com">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">آدرس</label>
+            <input type="text" x-model="modal.data.address" class="input" placeholder="تهران، خیابان ولیعصر...">
+          </div>
+        </div>
+      </template>
+
+      <!-- Product Form -->
+      <template x-if="modal.type === 'product'">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-sm text-slate-600 mb-1">نام محصول</label>
+            <input type="text" x-model="modal.data.name" class="input" placeholder="مثلا: لپ‌تاپ دل XPS">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">کد محصول (SKU)</label>
+            <input type="text" x-model="modal.data.sku" class="input" placeholder="PRD-001">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">دسته‌بندی</label>
+            <select x-model="modal.data.category" class="input">
+              <template x-for="cat in productCategories" :key="cat"><option :value="cat" x-text="cat"></option></template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">قیمت فروش (تومان)</label>
+            <input type="number" x-model.number="modal.data.price" class="input" placeholder="50000000">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">واحد</label>
+            <input type="text" x-model="modal.data.unit" class="input" placeholder="عدد / کیلو / بسته">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">موجودی فعلی</label>
+            <input type="number" x-model.number="modal.data.stock" class="input" placeholder="100">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">حداقل موجودی (هشدار)</label>
+            <input type="number" x-model.number="modal.data.minStock" class="input" placeholder="10">
+          </div>
+        </div>
+      </template>
+
+      <!-- Invoice Form -->
+      <template x-if="modal.type === 'invoice'">
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">مشتری</label>
+              <select x-model="modal.data.customerId" class="input">
+                <option value="">انتخاب کنید...</option>
+                <template x-for="c in data.customers" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">وضعیت</label>
+              <select x-model="modal.data.status" class="input">
+                <option value="draft">پیش‌نویس</option>
+                <option value="pending">در انتظار پرداخت</option>
+                <option value="paid">پرداخت شده</option>
+                <option value="overdue">معوق</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">تاریخ صدور</label>
+              <input type="date" x-model="modal.data.date" class="input">
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">سررسید</label>
+              <input type="date" x-model="modal.data.dueDate" class="input">
+            </div>
+          </div>
+          
+          <div class="border-t pt-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="font-medium text-slate-700">اقلام فاکتور</h4>
+              <button @click="addInvoiceItem()" class="text-xs text-cyan-600 flex items-center gap-1 hover:bg-cyan-50 px-2 py-1 rounded">
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> افزودن قلم
+              </button>
+            </div>
+            <div class="space-y-2">
+              <template x-for="(item, index) in modal.data.items" :key="index">
+                <div class="grid grid-cols-12 gap-2 items-center">
+                  <select x-model="item.productId" @change="updateInvoiceItem(item)" class="input col-span-5 text-sm">
+                    <option value="">انتخاب محصول...</option>
+                    <template x-for="p in data.products" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+                  </select>
+                  <input type="number" x-model.number="item.qty" @input="calcInvoiceItem(item)" placeholder="تعداد" class="input col-span-2 text-sm">
+                  <input type="number" x-model.number="item.price" @input="calcInvoiceItem(item)" placeholder="قیمت" class="input col-span-3 text-sm">
+                  <div class="col-span-2 text-sm font-medium text-left" x-text="formatMoney(item.total)"></div>
+                  <button @click="modal.data.items.splice(index, 1)" class="text-rose-500 hover:bg-rose-50 p-1 rounded col-span-12 -mt-2">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                  </button>
+                </div>
+              </template>
+            </div>
+            <div class="mt-4 pt-4 border-t flex justify-end">
+              <div class="text-left">
+                <div class="text-sm text-slate-500">مبلغ کل فاکتور:</div>
+                <div class="text-xl font-bold text-cyan-600" x-text="formatMoney(invoiceTotal(modal.data))"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Task Form -->
+      <template x-if="modal.type === 'task'">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">عنوان وظیفه</label>
+            <input type="text" x-model="modal.data.title" class="input" placeholder="مثلا: تماس با مشتری...">
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600 mb-1">توضیحات</label>
+            <textarea x-model="modal.data.description" class="input" rows="3"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">پروژه مربوطه</label>
+              <select x-model="modal.data.projectId" class="input">
+                <option value="">بدون پروژه</option>
+                <template x-for="p in data.projects" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">مسئول</label>
+              <input type="text" x-model="modal.data.assignee" class="input" placeholder="نام کارمند">
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">اولویت</label>
+              <select x-model="modal.data.priority" class="input">
+                <option value="low">پایین</option>
+                <option value="medium">متوسط</option>
+                <option value="high">بالا</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-600 mb-1">وضعیت</label>
+              <select x-model="modal.data.status" class="input">
+                <option value="todo">در صف انجام</option>
+                <option value="doing">در حال انجام</option>
+                <option value="review">بازبینی</option>
+                <option value="done">انجام شده</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Generic Forms (Supplier, Employee, Expense, Project, Purchase) -->
+      <template x-if="['supplier', 'employee', 'expense', 'project'].includes(modal.type)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="field in getFormFields(modal.type)" :key="field.key">
+            <div :class="field.full ? 'md:col-span-2' : ''">
+              <label class="block text-sm text-slate-600 mb-1" x-text="field.label"></label>
+              <input :type="field.type || 'text'" x-model="modal.data[field.key]" class="input" :placeholder="field.label">
+            </div>
+          </template>
+        </div>
+      </template>
+
+    </div>
+
+    <div class="p-5 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white rounded-b-2xl">
+      <button @click="closeModal()" class="btn-secondary">انصراف</button>
+      <button @click="saveModal()" class="btn-primary">
+        <i data-lucide="check"></i> ذخیره اطلاعات
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div x-show="toast.show" x-cloak x-transition class="fixed bottom-6 left-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-[60]">
+  <i data-lucide="check-circle" class="text-emerald-400"></i>
+  <span x-text="toast.message"></span>
+</div>
+
+<script>
+function erpApp() {
+  return {
+    // ===== STATE =====
+    currentView: 'dashboard',
+    sidebarCollapsed: false,
+    search: '',
+    settings: { companyName: 'شرکت نمونه سپهر', companyId: '14001234567' },
+    toast: { show: false, message: '' },
+    modal: { open: false, type: '', title: '', data: {} },
+    invoiceFilter: { status: '' },
+    productFilter: { category: '' },
+    taskFilter: { projectId: '' },
+    productCategories: ['الکترونیک', 'لوازم خانگی', 'نرم‌افزار', 'خدمات', 'مواد اولیه'],
+    taskColumns: [
+      { status: 'todo', title: 'در صف انجام', color: 'bg-slate-400' },
+      { status: 'doing', title: 'در حال انجام', color: 'bg-cyan-500' },
+      { status: 'review', title: 'بازبینی', color: 'bg-amber-500' },
+      { status: 'done', title: 'انجام شده', color: 'bg-emerald-500' },
+    ],
+    navItems: [
+      { id: 'dash', label: 'داشبورد', icon: 'layout-dashboard', view: 'dashboard' },
+      { id: 'sales', label: 'فروش و CRM', icon: 'shopping-cart', children: [
+        { view: 'invoices', label: 'فاکتورها', icon: 'file-text' },
+        { view: 'customers', label: 'مشتریان', icon: 'users' },
+      ]},
+      { id: 'inv', label: 'انبار و کالا', icon: 'boxes', children: [
+        { view: 'products', label: 'محصولات', icon: 'package' },
+        { view: 'stock', label: 'موجودی انبار', icon: 'warehouse' },
+      ]},
+      { id: 'pur', label: 'خرید و تامین', icon: 'truck', children: [
+        { view: 'purchases', label: 'سفارشات خرید', icon: 'clipboard-list' },
+        { view: 'suppliers', label: 'تامین‌کنندگان', icon: 'user-check' },
+      ]},
+      { id: 'fin', label: 'مالی و گزارش', icon: 'dollar-sign', children: [
+        { view: 'expenses', label: 'هزینه‌ها', icon: 'trending-down' },
+        { view: 'reports', label: 'گزارش‌ها', icon: 'bar-chart-2' },
+      ]},
+      { id: 'hr', label: 'منابع انسانی', icon: 'briefcase', children: [
+        { view: 'employees', label: 'کارمندان', icon: 'user' },
+      ]},
+      { id: 'proj', label: 'پروژه‌ها و وظایف', icon: 'folder-kanban', children: [
+        { view: 'projects', label: 'پروژه‌ها', icon: 'folder' },
+        { view: 'tasks', label: 'تابلوی وظایف', icon: 'trello' },
+      ]},
+      { id: 'set', label: 'تنظیمات', icon: 'settings', view: 'settings' },
+    ],
+    data: { customers: [], products: [], invoices: [], purchases: [], suppliers: [], expenses: [], employees: [], projects: [], tasks: [] },
+    charts: {},
+
+    // ===== INIT =====
+    init() {
+      this.loadData();
+      if (this.data.customers.length === 0) this.seedData();
+      this.$watch('data', (val) => this.saveData(), { deep: true });
+      this.$watch('settings', (val) => this.saveData(), { deep: true });
+      lucide.createIcons();
+    },
+
+    // ===== DATA PERSISTENCE =====
+    saveData() {
+      localStorage.setItem('erp_sepehr_data', JSON.stringify(this.data));
+      localStorage.setItem('erp_sepehr_settings', JSON.stringify(this.settings));
+    },
+    loadData() {
+      const d = localStorage.getItem('erp_sepehr_data');
+      if (d) this.data = JSON.parse(d);
+      const s = localStorage.getItem('erp_sepehr_settings');
+      if (s) this.settings = JSON.parse(s);
+    },
+    resetData() {
+      if(confirm('آیا از پاک کردن تمام داده‌ها مطمئن هستید؟')) {
+        localStorage.removeItem('erp_sepehr_data');
+        this.data = { customers: [], products: [], invoices: [], purchases: [], suppliers: [], expenses: [], employees: [], projects: [], tasks: [] };
+        this.seedData();
+        this.showToast('سیستم بازنشانی شد');
+      }
+    },
+    seedData() {
+      this.data.customers = [
+        { id: 1, name: 'شرکت پارس‌فنر', code: 'C-1001', phone: '02188123456', email: 'info@parsfanar.ir', address: 'تهران، خیابان ولیعصر' },
+        { id: 2, name: 'علی محمدی', code: 'C-1002', phone: '09121112233', email: 'ali@gmail.com', address: 'شیراز، خیابان زند' },
+      ];
+      this.data.products = [
+        { id: 1, name: 'لپ‌تاپ Dell XPS', sku: 'PRD-001', category: 'الکترونیک', price: 45000000, stock: 12, minStock: 5, unit: 'عدد' },
+        { id: 2, name: 'موس لاجیتک', sku: 'PRD-002', category: 'الکترونیک', price: 1200000, stock: 4, minStock: 10, unit: 'عدد' },
+      ];
+      this.data.suppliers = [
+        { id: 1, name: 'تامین‌کننده قطعات چین', code: 'S-2001', phone: '0086123456', email: 'sales@chinaparts.cn', address: 'Shenzhen, China' }
+      ];
+      this.data.employees = [
+        { id: 1, name: 'رضا محمدی', position: 'مدیر سیستم', phone: '0912000000', email: 'reza@sepehr.com', salary: 30000000 }
+      ];
+      this.data.projects = [
+        { id: 1, name: 'پیاده‌سازی ERP', customer: 'داخلی', budget: 100000000, progress: 65, deadline: '2024-03-20' }
+      ];
+      this.data.tasks = [
+        { id: 1, title: 'طراحی دیتابیس', description: 'طراحی جداول اصلی', projectId: 1, assignee: 'رضا', priority: 'high', status: 'done' },
+        { id: 2, title: 'تست سیستم انبار', description: 'بررسی موجودی', projectId: 1, assignee: 'رضا', priority: 'medium', status: 'doing' }
+      ];
+      this.data.invoices = [
+        { id: 1, number: 'INV-1001', customerId: 1, date: '2024-01-10', dueDate: '2024-02-10', status: 'paid', items: [{ productId: 1, qty: 2, price: 45000000, total: 90000000 }] },
+        { id: 2, number: 'INV-1002', customerId: 2, date: '2024-01-15', dueDate: '2024-02-15', status: 'pending', items: [{ productId: 2, qty: 5, price: 1200000, total: 6000000 }] }
+      ];
+      this.data.expenses = [
+        { id: 1, title: 'اجاره دفتر', category: 'عمومی', date: '2024-01-01', amount: 15000000 },
+        { id: 2, title: 'حقوق کارمندان', category: 'حقوق', date: '2024-01-01', amount: 30000000 }
+      ];
+    },
+
+    // ===== HELPERS =====
+    get currentTitle() {
+      const item = this.navItems.flatMap(i => i.children ? i.children : i).find(i => i.view === this.currentView);
+      return item ? item.label : 'داشبورد';
+    },
+    get currentSubtitle() {
+      const map = { 'dashboard': 'نمای کلی سیستم', 'invoices': 'مدیریت فاکتورهای فروش', 'tasks': 'مدیریت پروژه‌ها و وظایف' };
+      return map[this.currentView] || '';
+    },
+    formatMoney(n) {
+      if (!n) return '۰ تومان';
+      return Number(n).toLocaleString('fa-IR') + ' تومان';
+    },
+    toFa(n) {
+      if (!n && n !== 0) return '۰';
+      return Number(n).toLocaleString('fa-IR');
+    },
+    toJalali(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const d = new Date(dateStr);
+        const j = jalaali.toJalaali(d);
+        return `${j.jy}/${j.jm.toString().padStart(2,'0')}/${j.jd.toString().padStart(2,'0')}`;
+      } catch (e) { return dateStr; }
+    },
+    showToast(msg) {
+      this.toast.message = msg;
+      this.toast.show = true;
+      setTimeout(() => this.toast.show = false, 3000);
+      lucide.createIcons();
+    },
+    toggleGroup(item) { item.open = !item.open; },
+    setView(view) {
+      this.currentView = view;
+      setTimeout(() => lucide.createIcons(), 50);
+    },
+
+    // ===== COMPUTED GETTERS =====
+    get stats() {
+      const totalSales = this.data.invoices.filter(i => i.status === 'paid').reduce((s, i) => s + this.invoiceTotal(i), 0);
+      const totalExpenses = this.data.expenses.reduce((s, e) => s + e.amount, 0);
+      return {
+        totalSales,
+        totalExpenses,
+        profit: totalSales - totalExpenses,
+        pendingInvoices: this.data.invoices.filter(i => i.status === 'pending' || i.status === 'overdue').length,
+        lowStockProducts: this.data.products.filter(p => p.stock <= p.minStock).length
+      };
+    },
+    get filteredInvoices() {
+      return this.data.invoices.filter(i => {
+        if (this.invoiceFilter.status && i.status !== this.invoiceFilter.status) return false;
+        if (this.search) {
+          const c = this.getCustomerName(i.customerId);
+          return i.number.includes(this.search) || c.includes(this.search);
+        }
+        return true;
+      });
+    },
+    get filteredProducts() {
+      return this.data.products.filter(p => {
+        if (this.productFilter.category && p.category !== this.productFilter.category) return false;
+        if (this.search) return p.name.includes(this.search) || p.sku.includes(this.search);
+        return true;
+      });
+    },
+    get filteredTasks() {
+      return this.data.tasks.filter(t => {
+        if (this.taskFilter.projectId && t.projectId != this.taskFilter.projectId) return false;
+        return true;
+      });
+    },
+
+    // ===== RELATIONAL HELPERS =====
+    getCustomerName(id) { return this.data.customers.find(c => c.id == id)?.name || 'نامشخص'; },
+    getSupplierName(id) { return this.data.suppliers.find(s => s.id == id)?.name || 'نامشخص'; },
+    customerStats(id) {
+      const invs = this.data.invoices.filter(i => i.customerId == id);
+      return { count: invs.length, total: invs.reduce((s, i) => s + this.invoiceTotal(i), 0) };
+    },
+    invoiceTotal(inv) { return inv?.items?.reduce((s, i) => s + (Number(i.qty) * Number(i.price)), 0) || 0; },
+    purchaseTotal(pur) { return pur?.items?.reduce((s, i) => s + (Number(i.qty) * Number(i.price)), 0) || 0; },
+    invoiceStatusBadge(s) { return { paid: 'badge-success', pending: 'badge-warning', overdue: 'badge-danger', draft: 'badge-secondary' }[s]; },
+    invoiceStatusText(s) { return { paid: 'پرداخت شده', pending: 'در انتظار', overdue: 'معوق', draft: 'پیش‌نویس' }[s]; },
+    priorityBadge(p) { return { low: 'badge-secondary', medium: 'badge-info', high: 'badge-danger' }[p]; },
+    priorityText(p) { return { low: 'پایین', medium: 'متوسط', high: 'بالا' }[p]; },
+
+    // ===== MODALS =====
+    get modalTitle() {
+      const map = { customer: 'مشتری', product: 'محصول', invoice: 'فاکتور', task: 'وظیفه', supplier: 'تامین‌کننده', employee: 'کارمند', expense: 'هزینه', project: 'پروژه' };
+      const isEdit = this.modal.data.id ? 'ویرایش' : 'افزودن';
+      return `${isEdit} ${map[this.modal.type]}`;
+    },
+    openModal(type, data = null) {
+      this.modal.type = type;
+      this.modal.data = data ? JSON.parse(JSON.stringify(data)) : this.getEmptyModel(type);
+      this.modal.open = true;
+      setTimeout(() => lucide.createIcons(), 50);
+    },
+    closeModal() { this.modal.open = false; this.modal.data = {}; },
+    getEmptyModel(type) {
+      const models = {
+        customer: { name: '', code: 'C-' + Date.now().toString().slice(-4), phone: '', email: '', address: '' },
+        product: { name: '', sku: 'PRD-' + Date.now().toString().slice(-4), category: this.productCategories[0], price: 0, stock: 0, minStock: 0, unit: 'عدد' },
+        supplier: { name: '', code: 'S-' + Date.now().toString().slice(-4), phone: '', email: '', address: '' },
+        employee: { name: '', position: '', phone: '', email: '', salary: 0 },
+        expense: { title: '', category: 'عمومی', date: new Date().toISOString().slice(0,10), amount: 0 },
+        project: { name: '', customer: '', budget: 0, progress: 0, deadline: '' },
+        task: { title: '', description: '', projectId: '', assignee: '', priority: 'medium', status: 'todo' },
+        invoice: { number: 'INV-' + Date.now().toString().slice(-4), customerId: '', date: new Date().toISOString().slice(0,10), dueDate: '', status: 'draft', items: [] }
+      };
+      return models[type] || {};
+    },
+    saveModal() {
+      const type = this.modal.type;
+      const data = this.modal.data;
+      const arrName = type + 's'; // e.g. customers, products
+      
+      if (type === 'invoice' && (!data.customerId || data.items.length === 0)) {
+        alert('لطفا مشتری و حداقل یک قلم برای فاکتور انتخاب کنید.');
+        return;
+      }
+
+      if (data.id) {
+        const index = this.data[arrName].findIndex(x => x.id === data.id);
+        if (index !== -1) this.data[arrName][index] = data;
+      } else {
+        data.id = Date.now();
+        this.data[arrName].push(data);
+      }
+      
+      // Handle Stock Movement on Invoice Save
+      if (type === 'invoice') {
+        this.updateStockFromInvoice(data);
+      }
+
+      this.saveData();
+      this.closeModal();
+      this.showToast('اطلاعات با موفقیت ذخیره شد');
+    },
+    deleteItem(type, id) {
+      if (confirm('آیا از حذف این مورد مطمئن هستید؟')) {
+        const arrName = type + 's';
+        this.data[arrName] = this.data[arrName].filter(x => x.id !== id);
+        this.saveData();
+        this.showToast('مورد با موفقیت حذف شد');
+      }
+    },
+    
+    // Specific wrappers for HTML calls to keep it simple
+    openCustomerModal(c = null) { this.openModal('customer', c); },
+    deleteCustomer(id) { this.deleteItem('customer', id); },
+    openProductModal(p = null) { this.openModal('product', p); },
+    deleteProduct(id) { this.deleteItem('product', id); },
+    openSupplierModal(s = null) { this.openModal('supplier', s); },
+    deleteSupplier(id) { this.deleteItem('supplier', id); },
+    openEmployeeModal(e = null) { this.openModal('employee', e); },
+    deleteEmployee(id) { this.deleteItem('employee', id); },
+    openExpenseModal(e = null) { this.openModal('expense', e); },
+    deleteExpense(id) { this.deleteItem('expense', id); },
+    openProjectModal(p = null) { this.openModal('project', p); },
+    deleteProject(id) { this.deleteItem('project', id); },
+    openTaskModal(t = null) { this.openModal('task', t); },
+    deleteTask(id) { this.deleteItem('task', id); },
+    openInvoiceModal(i = null) { this.openModal('invoice', i); },
+    deleteInvoice(id) { this.deleteItem('invoice', id); },
+    openPurchaseModal() { this.showToast('بخش خرید در نسخه نمایشی غیرفعال است'); },
+
+    // ===== INVOICE ITEMS LOGIC =====
+    addInvoiceItem() {
+      this.modal.data.items.push({ productId: '', qty: 1, price: 0, total: 0 });
+    },
+    updateInvoiceItem(item) {
+      const p = this.data.products.find(pr => pr.id == item.productId);
+      if (p) item.price = p.price;
+      this.calcInvoiceItem(item);
+    },
+    calcInvoiceItem(item) {
+      item.total = Number(item.qty) * Number(item.price);
+    },
+    updateStockFromInvoice(inv) {
+      if (inv.status === 'paid') {
+        inv.items.forEach(itm => {
+          const p = this.data.products.find(pr => pr.id == itm.productId);
+          if (p) p.stock = Math.max(0, p.stock - Number(itm.qty));
+        });
+      }
+    },
+    printInvoice(inv) {
+      this.showToast('آماده چاپ...');
+      window.print();
+    },
+    exportInvoices() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.data.invoices, null, 2));
+      const dlAnchorElem = document.createElement('a');
+      dlAnchorElem.setAttribute("href",     dataStr     );
+      dlAnchorElem.setAttribute("download", "invoices.json");
+      dlAnchorElem.click();
+    },
+    viewInvoice(inv) { this.openInvoiceModal(inv); },
+
+    // ===== TASKS KANBAN =====
+    onDragStartTask(e, id) {
+      e.dataTransfer.setData('taskId', id);
+    },
+    onDropTask(e, newStatus) {
+      const id = e.dataTransfer.getData('taskId');
+      const task = this.data.tasks.find(t => t.id == id);
+      if (task) {
+        task.status = newStatus;
+        this.saveData();
+        this.showToast('وضعیت وظیفه بروزرسانی شد');
+      }
+    },
+    completeTask(id) {
+      const t = this.data.tasks.find(t => t.id == id);
+      if (t) { t.status = 'done'; this.saveData(); }
+    },
+
+    // ===== REPORTS =====
+    topProducts(limit) {
+      const sales = {};
+      this.data.invoices.filter(i => i.status === 'paid').forEach(inv => {
+        inv.items.forEach(itm => {
+          if (!sales[itm.productId]) sales[itm.productId] = { qty: 0, revenue: 0 };
+          sales[itm.productId].qty += Number(itm.qty);
+          sales[itm.productId].revenue += Number(itm.total);
+        });
+      });
+      const result = Object.keys(sales).map(id => {
+        const p = this.data.products.find(pr => pr.id == id);
+        return { product: p, qty: sales[id].qty, revenue: sales[id].revenue };
+      }).sort((a,b) => b.revenue - a.revenue).slice(0, limit);
+      return result;
+    },
+    topCustomers(limit) {
+      const stats = {};
+      this.data.invoices.filter(i => i.status === 'paid').forEach(inv => {
+        if (!stats[inv.customerId]) stats[inv.customerId] = { count: 0, total: 0 };
+        stats[inv.customerId].count++;
+        stats[inv.customerId].total += this.invoiceTotal(inv);
+      });
+      return Object.keys(stats).map(id => {
+        const c = this.data.customers.find(cu => cu.id == id);
+        return { customer: c, count: stats[id].count, total: stats[id].total };
+      }).sort((a,b) => b.total - a.total).slice(0, limit);
+    },
+    stockMovements() {
+      let moves = [];
+      this.data.invoices.filter(i => i.status === 'paid').forEach(inv => {
+        inv.items.forEach(itm => {
+          const p = this.data.products.find(pr => pr.id == itm.productId);
+          if (p) moves.push({ id: Date.now()+Math.random(), date: inv.date, product: p.name, type: 'out', qty: itm.qty, ref: inv.number });
+        });
+      });
+      return moves.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 15);
+    },
+
+    // ===== GENERIC FORM CONFIG =====
+    getFormFields(type) {
+      const configs = {
+        supplier: [
+          { key: 'name', label: 'نام تامین‌کننده' },
+          { key: 'code', label: 'کد' },
+          { key: 'phone', label: 'تلفن' },
+          { key: 'email', label: 'ایمیل', type: 'email' },
+          { key: 'address', label: 'آدرس', full: true }
+        ],
+        employee: [
+          { key: 'name', label: 'نام و نام خانوادگی' },
+          { key: 'position', label: 'سمت' },
+          { key: 'phone', label: 'تلفن' },
+          { key: 'email', label: 'ایمیل', type: 'email' },
+          { key: 'salary', label: 'حقوق ماهانه (تومان)', type: 'number' }
+        ],
+        expense: [
+          { key: 'title', label: 'عنوان هزینه' },
+          { key: 'category', label: 'دسته‌بندی' },
+          { key: 'date', label: 'تاریخ', type: 'date' },
+          { key: 'amount', label: 'مبلغ (تومان)', type: 'number' }
+        ],
+        project: [
+          { key: 'name', label: 'نام پروژه', full: true },
+          { key: 'customer', label: 'مشتری / کارفرما' },
+          { key: 'budget', label: 'بودجه (تومان)', type: 'number' },
+          { key: 'progress', label: 'درصد پیشرفت', type: 'number' },
+          { key: 'deadline', label: 'ددلاین', type: 'date' }
+        ]
+      };
+      return configs[type] || [];
+    },
+
+    saveSettings() { this.saveData(); this.showToast('تنظیمات ذخیره شد'); },
+
+    // ===== CHARTS =====
+    initDashboardCharts() {
+      const ctx1 = document.getElementById('salesChart');
+      if (ctx1) {
+        if (this.charts.sales) this.charts.sales.destroy();
+        this.charts.sales = new Chart(ctx1, {
+          type: 'line',
+          data: {
+            labels: ['مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی'],
+            datasets: [
+              { label: 'فروش', data: [120, 190, 150, 280, 210, 350].map(x=>x*1000000), borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.1)', fill: true, tension: 0.4 },
+              { label: 'هزینه', data: [80, 90, 110, 120, 100, 140].map(x=>x*1000000), borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', fill: true, tension: 0.4 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+      const ctx2 = document.getElementById('categoryChart');
+      if (ctx2) {
+        if (this.charts.cat) this.charts.cat.destroy();
+        this.charts.cat = new Chart(ctx2, {
+          type: 'doughnut',
+          data: {
+            labels: this.productCategories,
+            datasets: [{ data: [35, 20, 15, 20, 10], backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+    },
+    initExpenseChart() {
+      const ctx = document.getElementById('expenseChart');
+      if (ctx) {
+        if (this.charts.exp) this.charts.exp.destroy();
+        const cats = {};
+        this.data.expenses.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount; });
+        this.charts.exp = new Chart(ctx, {
+          type: 'pie',
+          data: { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#ec4899'] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+    },
+    initReportCharts() {
+      const ctx1 = document.getElementById('monthlyChart');
+      if (ctx1) {
+        if (this.charts.rep1) this.charts.rep1.destroy();
+        this.charts.rep1 = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'],
+            datasets: [
+              { label: 'درآمد', data: [10,20,15,25,30,28,35,40,38,45,50,55].map(x=>x*1000000), backgroundColor: '#06b6d4' },
+              { label: 'هزینه', data: [5,8,10,12,15,14,18,20,19,22,25,28].map(x=>x*1000000), backgroundColor: '#f43f5e' }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+      const ctx2 = document.getElementById('expensePieChart');
+      if (ctx2) {
+        if (this.charts.rep2) this.charts.rep2.destroy();
+        const cats = {};
+        this.data.expenses.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount; });
+        this.charts.rep2 = new Chart(ctx2, {
+          type: 'doughnut',
+          data: { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+    }
+  }
+}
+</script>
+
+</body>
+</html>

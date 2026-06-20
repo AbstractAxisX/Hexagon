@@ -35,6 +35,18 @@ export const SquareTile = {
     }
 
     // ---------------------------------------------------------
+    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی (مربع/گرد)
+    // ---------------------------------------------------------
+    const makeShapeClip = () => new fabric.Rect({
+      width: size,
+      height: size,
+      rx: cornerRadius,
+      ry: cornerRadius,
+      originX: 'center',
+      originY: 'center',
+    });
+
+    // ---------------------------------------------------------
     // ۲. مدیریت لایه‌های متن (Multi-Layer System)
     // ---------------------------------------------------------
     const textObjects = [];
@@ -74,7 +86,14 @@ export const SquareTile = {
 
                 // غیرفعال کردن انتخاب برای درگ شدن گروه
                 selectable: false,
-                evented: false
+                evented: false,
+
+                // ✅ فیکس: متن از مرز کاشی بیرون نمی‌زنه
+                clipPath: (() => {
+                  const clip = makeShapeClip();
+                  clip.set({ left: -relX, top: -relY });
+                  return clip;
+                })(),
             });
             textObjects.push(textObj);
         });
@@ -89,7 +108,12 @@ export const SquareTile = {
                 if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
                 if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
             }
-            textBox.set({ selectable: false, evented: false });
+            textBox.set({
+              selectable: false,
+              evented: false,
+              // ✅ فیکس: محدود به مرز کاشی
+              clipPath: makeShapeClip(),
+            });
             textObjects.push(textBox);
         }
     }

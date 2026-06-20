@@ -1,510 +1,284 @@
 // ============================================================
 // OnboardingPage.jsx — صفحه انتخاب اولیه (پیش از ادیتور)
-// طراحی مجدد کامل: هویت بصری «کاشی نوری» + اسکرول سالم + قابل گسترش
+// سکشن اول: فرم کلاسیک راست + پنجره پیش‌نمایش چپ
+// + دکمه «ادامه طراحی» اگر طرح ذخیره‌شده در localStorage باشد
 // ============================================================
-import React, { useState } from 'react';
-import { Check, Loader2, Sun, Moon, Magnet, RefreshCw, LayoutGrid, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { createSession, ApiError } from './services/mockApi';
+import { APP_CONFIG } from './data/appConfig';
+import useAppStore from './store/useAppStore';
+import { hasSavedDesign } from './utils/persistDesign';
+import { Check, Loader2, RotateCcw } from 'lucide-react';
 
-// ── توکن‌های طراحی ──────────────────────────────────────────
-// همه‌ی رنگ‌ها به‌صورت inline style اعمال می‌شن، نه کلاس‌های دلخواه
-// تیلویند، چون این محیط کامپایلر JIT نداره و فقط کلاس‌های پایه
-// از پیش ساخته‌شده رو می‌شناسه.
-const C = {
-  bgDeep: '#15110D',
-  bgPanel: '#1D1812',
-  paper: '#FBF7F1',
-  paperDim: '#F1E8D9',
-  ink: '#1C1611',
-  inkSoft: '#56493B',
-  muted: '#9C8E7B',
-  line: '#E7DCC8',
-  amber: '#FF8A3D',
-  amberDeep: '#D85F1B',
-  amberSoft: '#FFD9AE',
-  white: '#FFFFFF',
+const MATERIAL_TEXTURE = {
+  forex:      'https://picsum.photos/id/1060/700/700',
+  aluminum:   'https://picsum.photos/id/1070/700/700',
+  plexiglass: 'https://picsum.photos/id/1080/700/700',
 };
-const FONT_DISPLAY = "'Noto Naskh Arabic', serif";
-const FONT_BODY = "'Vazirmatn', sans-serif";
 
-const SHAPES = [
-  { id: 'hex', name: 'شش‌ضلعی' },
-  { id: 'square', name: 'مربع' },
-  { id: 'circle', name: 'دایره' },
-];
-const SIZES = [
-  { id: 'xs', label: '۱۵ × ۱۵', scale: 0.6 },
-  { id: 's', label: '۲۰ × ۲۰', scale: 0.74 },
-  { id: 'm', label: '۲۵ × ۲۵', scale: 0.9 },
-  { id: 'l', label: '۳۰ × ۳۰', scale: 1.04 },
-  { id: 'xl', label: '۴۰ × ۴۰', scale: 1.2 },
-];
-const MATERIALS = [
-  { id: 'forex', name: 'فورکس', desc: 'مات، سبک و اقتصادی — انتخاب اول اکثر مشتری‌ها', texture: 'https://picsum.photos/id/1060/700/700' },
-  { id: 'aluminum', name: 'آلومینیوم', desc: 'فلزی، مدرن و فوق بادوام', texture: 'https://picsum.photos/id/1070/700/700' },
-  { id: 'plexiglass', name: 'پلکسی‌گلاس', desc: 'شفاف، براق با عمق بصری لوکس', texture: 'https://picsum.photos/id/1080/700/700' },
-];
-const CORNERS = [
-  { id: 'sharp', name: 'تیز' },
-  { id: 'rounded', name: 'گرد' },
-];
 const SHAPE_CLIP = {
-  hex: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)',
+  hex:    'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)',
   square: 'none',
   circle: 'circle(50% at 50% 50%)',
 };
-const STEPS = [
-  { id: 'shape', title: 'شکل کاشی' },
-  { id: 'size', title: 'سایز' },
-  { id: 'material', title: 'متریال' },
-  { id: 'corner', title: 'گوشه‌ها' },
-];
 
-function fakeCreateSession(selections) {
-  return new Promise(resolve => setTimeout(() => resolve({ ok: true, selections }), 850));
-}
+export default function OnboardingPage({ onDone }) {
+  const setGlobalSetting = useAppStore(s => s.setGlobalSetting);
+  const loadSavedDesign  = useAppStore(s => s.loadSavedDesign);
 
-export default function OnboardingPage({ onDone = () => {} }) {
-  const [selections, setSelections] = useState({ shape: 'hex', size: 'm', material: 'forex', corner: 'sharp' });
-  const [activeStep, setActiveStep] = useState('shape');
-  const [lightOn, setLightOn] = useState(true);
+  const [selections, setSelections] = useState({
+    shape: 'hex', size: 'm', material: 'forex', corner: 'sharp',
+  });
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
+  const [canContinue, setCanContinue] = useState(false);
 
-  const pick = (stepId, value) => {
-    setSelections(p => ({ ...p, [stepId]: value }));
-    const idx = STEPS.findIndex(s => s.id === stepId);
-    setActiveStep(STEPS[idx + 1]?.id ?? null);
-  };
+  // چک کردن localStorage فقط یه بار، موقع لود صفحه
+  useEffect(() => {
+    setCanContinue(hasSavedDesign());
+  }, []);
+
+  const pick = (key, value) => setSelections(p => ({ ...p, [key]: value }));
 
   async function handleStart() {
     setLoading(true);
     setError(null);
     try {
-      await fakeCreateSession(selections);
-      setDone(true);
-      onDone(selections);
-    } catch {
-      setError('یه خطای غیرمنتظره پیش اومد. دوباره امتحان کن.');
+      const { settings } = await createSession(selections);
+      Object.entries(settings).forEach(([k, v]) => setGlobalSetting(k, v));
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'خطای غیرمنتظره. دوباره تلاش کن.');
     } finally {
       setLoading(false);
     }
   }
 
-  const sizeObj = SIZES.find(s => s.id === selections.size);
-  const matObj = MATERIALS.find(m => m.id === selections.material);
-  const cornerObj = CORNERS.find(c => c.id === selections.corner);
+  function handleContinue() {
+    const loaded = loadSavedDesign();
+    if (loaded) onDone();
+  }
 
   return (
-    <div dir="rtl" style={{ background: C.paper, fontFamily: FONT_BODY, width: '100%' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;700&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
-        *:focus-visible { outline: 2px solid ${C.amber}; outline-offset: 2px; }
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
-        }
-        @keyframes obp-drift { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-10px) } }
-        @keyframes obp-flicker { 0%,100%{ opacity: 1 } 92%{ opacity: 1 } 93%{ opacity: 0.55 } 94%{ opacity: 1 } }
-      `}</style>
+    // صفحه آزاد، بدون هیچ قفلی روی اسکرول
+    <div dir="rtl" className="bg-white font-[Vazirmatn]">
 
-      {/* ═══════════ سکشن ۱: کانفیگوریتور ═══════════ */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr', width: '100%' }} className="lg:grid-cols-2">
+      {/* ══════════ سکشن اول: فرم + پیش‌نمایش ══════════ */}
+      <section className="max-w-6xl mx-auto px-6 lg:px-8 py-14 lg:py-20">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
 
-        {/* پنل پیش‌نمایش — موبایل بالا، دسکتاپ چپ */}
-        <div className="order-1 lg:order-2" style={{ position: 'relative', minHeight: 520, background: C.bgDeep, overflow: 'hidden' }}>
-          <div className="lg:sticky" style={{ top: 0, width: '100%', minHeight: 520 }}>
-            <LightboxPreview selections={selections} lightOn={lightOn} onToggleLight={() => setLightOn(v => !v)} sizeScale={sizeObj?.scale ?? 0.9} />
-          </div>
-        </div>
+          {/* ── راست: فرم کلاسیک ── */}
+          <div className="order-1">
+            <p className="text-sm font-bold text-red-600 mb-2">پیکربندی محصول</p>
+            <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-2">کاشی‌های دیواری بساز</h1>
+            <p className="text-base text-slate-500 mb-8">شکل، سایز و متریال را انتخاب کن.</p>
 
-        {/* پنل ساخت — موبایل پایین، دسکتاپ راست */}
-        <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div className="px-6 sm:px-12 lg:px-16 xl:px-20 py-14 lg:py-20">
-            <div className="max-w-xl mx-auto lg:mx-0">
-
-              <div
-                className="inline-flex items-center gap-2 mb-5"
-                style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.16em', color: C.amberDeep, textTransform: 'uppercase' }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: 999, background: C.amber, display: 'inline-block' }} />
-                کاشی نوری — مرحله ساخت
-              </div>
-
-              <h1 className="mb-4" style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 'clamp(34px, 5vw, 52px)', lineHeight: 1.25, color: C.ink }}>
-                نور را به دیوار دعوت کن
-              </h1>
-              <p className="mb-12" style={{ fontSize: 18, color: C.inkSoft, lineHeight: 1.9 }}>
-                شکل، سایز و متریال رو انتخاب کن — همین‌جا، کنار دستت، ببین وقتی روشنش می‌کنی چه شکلی می‌شه.
-              </p>
-
-              <div className="space-y-4">
-                {STEPS.map((step, i) => (
-                  <StepCard
-                    key={step.id}
-                    index={i}
-                    isLast={i === STEPS.length - 1}
-                    title={step.title}
-                    summary={
-                      step.id === 'shape' ? SHAPES.find(s => s.id === selections.shape)?.name :
-                      step.id === 'size' ? `${sizeObj?.label} سانت` :
-                      step.id === 'material' ? matObj?.name :
-                      cornerObj?.name
-                    }
-                    open={activeStep === step.id}
-                    onToggle={() => setActiveStep(p => (p === step.id ? null : step.id))}
-                  >
-                    {step.id === 'shape' && (
-                      <div className="grid grid-cols-3 gap-3">
-                        {SHAPES.map(s => (
-                          <OptionTile key={s.id} active={selections.shape === s.id} onClick={() => pick('shape', s.id)}>
-                            <span
-                              style={{
-                                width: 44, height: 44, display: 'block',
-                                background: selections.shape === s.id ? C.amber : C.ink,
-                                clipPath: SHAPE_CLIP[s.id],
-                                borderRadius: s.id === 'square' ? 8 : 0,
-                              }}
-                            />
-                            <span style={{ fontSize: 14, fontWeight: 700, color: selections.shape === s.id ? C.amberDeep : C.inkSoft }}>{s.name}</span>
-                          </OptionTile>
-                        ))}
-                      </div>
-                    )}
-
-                    {step.id === 'size' && (
-                      <div className="space-y-2.5">
-                        {SIZES.map(s => {
-                          const active = selections.size === s.id;
-                          return (
-                            <button
-                              key={s.id}
-                              onClick={() => pick('size', s.id)}
-                              className="w-full flex items-center justify-between px-5 py-4 transition-all"
-                              style={{
-                                borderRadius: 16,
-                                border: `2px solid ${active ? C.amber : C.line}`,
-                                background: active ? C.amberSoft + '55' : C.paper,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <span style={{ fontSize: 16, fontWeight: 700, color: active ? C.amberDeep : C.inkSoft }}>{s.label} سانت</span>
-                              {active && <Check size={18} style={{ color: C.amberDeep }} />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {step.id === 'material' && (
-                      <>
-                        <div className="grid grid-cols-3 gap-3">
-                          {MATERIALS.map(m => (
-                            <OptionTile key={m.id} active={selections.material === m.id} onClick={() => pick('material', m.id)}>
-                              <div
-                                style={{
-                                  width: 56, height: 56, backgroundImage: `url(${m.texture})`,
-                                  backgroundSize: 'cover', backgroundPosition: 'center',
-                                  clipPath: SHAPE_CLIP.hex,
-                                  filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.25))',
-                                }}
-                              />
-                              <span style={{ fontSize: 13, fontWeight: 700, color: selections.material === m.id ? C.amberDeep : C.inkSoft }}>{m.name}</span>
-                            </OptionTile>
-                          ))}
-                        </div>
-                        <p className="mt-4" style={{ fontSize: 14, color: C.muted, lineHeight: 1.8 }}>{matObj?.desc}</p>
-                      </>
-                    )}
-
-                    {step.id === 'corner' && (
-                      <div className="grid grid-cols-2 gap-3">
-                        {CORNERS.map(c => {
-                          const active = selections.corner === c.id;
-                          return (
-                            <button
-                              key={c.id}
-                              onClick={() => pick('corner', c.id)}
-                              className="flex items-center justify-center gap-3 py-5 transition-all"
-                              style={{
-                                borderRadius: 16,
-                                border: `2px solid ${active ? C.amber : C.line}`,
-                                background: active ? C.amberSoft + '55' : C.paper,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: 18, height: 18,
-                                  border: `3px solid ${active ? C.amberDeep : C.muted}`,
-                                  borderRadius: c.id === 'rounded' ? 6 : 1,
-                                }}
-                              />
-                              <span style={{ fontSize: 16, fontWeight: 700, color: active ? C.amberDeep : C.inkSoft }}>{c.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </StepCard>
-                ))}
-              </div>
-
-              {error && (
-                <p className="mt-5 px-5 py-4" style={{ fontSize: 15, color: '#B3261E', background: '#FBEAE9', borderRadius: 14 }}>{error}</p>
-              )}
-
+            {/* ── نوار «طرح ذخیره‌شده داری» ── */}
+            {canContinue && (
               <button
-                onClick={handleStart}
-                disabled={loading}
-                className="mt-8 w-full flex items-center justify-center gap-3 transition-all active:scale-95"
-                style={{
-                  borderRadius: 18, padding: '20px 0', fontSize: 18, fontWeight: 800,
-                  color: C.white, background: C.ink, opacity: loading ? 0.6 : 1,
-                  cursor: loading ? 'default' : 'pointer', boxShadow: '0 16px 32px -12px rgba(0,0,0,0.35)',
-                }}
+                onClick={handleContinue}
+                className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-50 transition-colors mb-8"
               >
-                {loading ? (<><Loader2 size={20} className="animate-spin" /> داره آماده می‌شه…</>) : 'ادیتور رو باز کن'}
+                <span className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                    <RotateCcw size={16} className="text-blue-600" />
+                  </span>
+                  <span className="text-right">
+                    <span className="block text-sm font-bold text-blue-700">ادامه طراحی قبلی</span>
+                    <span className="block text-xs text-blue-500/70">یک طرح ذخیره‌شده روی این دستگاه پیدا شد</span>
+                  </span>
+                </span>
               </button>
+            )}
 
-              {done && (
-                <div className="mt-4 flex items-center gap-2.5 px-5 py-4" style={{ borderRadius: 14, background: '#EAF4EA' }}>
-                  <Check size={18} style={{ color: '#2E7D32' }} />
-                  <span style={{ fontSize: 15, color: '#2E7D32', fontWeight: 600 }}>ردیفه! کاشی اولت آماده‌ست — این تنظیمات می‌ره تو ادیتور.</span>
+            <form onSubmit={e => { e.preventDefault(); handleStart(); }} className="space-y-6">
+
+              {/* شکل */}
+              <FormField label="شکل کاشی">
+                <select
+                  value={selections.shape}
+                  onChange={e => pick('shape', e.target.value)}
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-300 text-base text-slate-800 bg-white outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
+                >
+                  {APP_CONFIG.shapes.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </FormField>
+
+              {/* سایز */}
+              <FormField label="سایز">
+                <select
+                  value={selections.size}
+                  onChange={e => pick('size', e.target.value)}
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-300 text-base text-slate-800 bg-white outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
+                >
+                  {APP_CONFIG.sizes.map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </FormField>
+
+              {/* متریال — رادیو کارت ساده */}
+              <FormField label="متریال">
+                <div className="grid grid-cols-3 gap-3">
+                  {APP_CONFIG.materials.map(m => {
+                    const active = selections.material === m.id;
+                    return (
+                      <label key={m.id}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all
+                          ${active ? 'border-red-500 bg-red-50/50 ring-1 ring-red-200' : 'border-slate-300 hover:border-slate-400'}`}>
+                        <input
+                          type="radio" name="material" className="sr-only"
+                          checked={active}
+                          onChange={() => pick('material', m.id)}
+                        />
+                        <div className="w-12 h-12 bg-cover bg-center"
+                          style={{
+                            backgroundImage: `url(${MATERIAL_TEXTURE[m.id]})`,
+                            clipPath: SHAPE_CLIP.hex,
+                          }} />
+                        <span className={`text-xs font-medium text-center ${active ? 'text-red-600' : 'text-slate-600'}`}>{m.name}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+              </FormField>
+
+              {/* گوشه — رادیو ساده */}
+              <FormField label="گوشه‌ها">
+                <div className="flex gap-3">
+                  {APP_CONFIG.corners.map(c => {
+                    const active = selections.corner === c.id;
+                    return (
+                      <label key={c.id}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border cursor-pointer transition-all
+                          ${active ? 'border-red-500 bg-red-50/50 ring-1 ring-red-200 text-red-600' : 'border-slate-300 text-slate-600 hover:border-slate-400'}`}>
+                        <input
+                          type="radio" name="corner" className="sr-only"
+                          checked={active}
+                          onChange={() => pick('corner', c.id)}
+                        />
+                        {active && <Check size={15} />}
+                        <span className="text-sm font-medium">{c.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </FormField>
+
+              {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{error}</p>}
+
+              {/* ── دکمه‌های اقدام: شروع (+ ادامه کنارش اگر طرح داشت) ── */}
+              <div className={`grid gap-3 ${canContinue ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 rounded-xl bg-slate-900 hover:bg-red-600 text-white font-bold text-base shadow-md disabled:opacity-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  {loading
+                    ? <><Loader2 size={18} className="animate-spin" /> در حال آماده‌سازی...</>
+                    : 'شروع طراحی جدید'}
+                </button>
+
+                {canContinue && (
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    className="w-full py-4 rounded-xl border-2 border-slate-900 text-slate-900 font-bold text-base hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw size={17} /> ادامه طراحی
+                  </button>
+                )}
+              </div>
+            </form>
           </div>
+
+          {/* ── چپ: پنجره پیش‌نمایش ── */}
+          <div className="order-2">
+            <div className="rounded-2xl border border-slate-200 shadow-sm overflow-hidden bg-[#10131c] aspect-square lg:aspect-auto lg:h-[520px] flex items-center justify-center relative">
+              <BacklitPreview selections={selections} />
+            </div>
+            <p className="text-xs text-slate-400 text-center mt-3">پیش‌نمایش زنده — با تغییر گزینه‌ها آپدیت می‌شود</p>
+          </div>
+
         </div>
       </section>
 
-      {/* ═══════════ سکشن ۲: چرا کاشی نوری ═══════════ */}
-      <Section eyebrow="چرا این محصول" title="فرقش با یه قاب عکس معمولی چیه؟">
-        <div className="grid sm:grid-cols-3 gap-6">
-          {[
-            { Icon: Magnet, title: 'نصب بدون دریل', desc: 'سیستم آویز مغناطیسی — بدون سوراخ‌کاری روی دیوار' },
-            { Icon: LayoutGrid, title: 'قابل گسترش', desc: 'هر زمان خواستی یه کاشی دیگه اضافه کن یا چیدمان رو عوض کن' },
-            { Icon: RefreshCw, title: 'تعویض آسان', desc: 'جابه‌جایی و جایگزینی عکس‌ها در عرض چند ثانیه' },
-          ].map((item, i) => (
-            <div key={i} className="p-7" style={{ background: C.white, border: `1px solid ${C.line}`, borderRadius: 20 }}>
-              <div className="flex items-center justify-center mb-5" style={{ width: 46, height: 46, borderRadius: 14, background: C.amberSoft + '66' }}>
-                <item.Icon size={22} style={{ color: C.amberDeep }} />
-              </div>
-              <h3 className="mb-2" style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>{item.title}</h3>
-              <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.85 }}>{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* ═══════════ سکشن ۳: نمونه دیوارها (جای گالری) ═══════════ */}
-      <Section eyebrow="الهام بگیر" title="چیدمان‌هایی که مشتری‌ها ساختن" tone="dim">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[1011, 1025, 1035, 1043].map(id => (
-            <div key={id} style={{ borderRadius: 18, overflow: 'hidden', aspectRatio: '1 / 1' }}>
-              <img src={`https://picsum.photos/id/${id}/400/400`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* 👇 برای افزودن سکشن بعدی، همینجا یه <Section> دیگه اضافه کن —
-          پدینگ، فاصله و تایپوگرافی خودش هماهنگ می‌شه. */}
+      {/* ══════════ این‌جا سکشن‌های بعدی رو اضافه کن ══════════ */}
 
     </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════
-function Section({ eyebrow, title, tone = 'light', children }) {
-  const bg = tone === 'dim' ? C.paperDim : C.paper;
+function FormField({ label, children }) {
   return (
-    <section className="py-20 sm:py-24 px-6 sm:px-12 lg:px-20" style={{ background: bg, borderTop: `1px solid ${C.line}` }}>
-      <div className="max-w-6xl mx-auto">
-        {eyebrow && (
-          <div className="mb-3" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.14em', color: C.amberDeep, textTransform: 'uppercase' }}>
-            {eyebrow}
-          </div>
-        )}
-        {title && (
-          <h2 className="mb-10" style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(26px, 3vw, 34px)', fontWeight: 700, color: C.ink }}>
-            {title}
-          </h2>
-        )}
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function OptionTile({ active, onClick, children }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-3 py-6 transition-all"
-      style={{
-        borderRadius: 18,
-        border: `2px solid ${active ? C.amber : C.line}`,
-        background: active ? C.amberSoft + '55' : C.paper,
-        cursor: 'pointer',
-      }}
-    >
+    <div>
+      <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
       {children}
-    </button>
-  );
-}
-
-function StepCard({ index, isLast, title, summary, open, onToggle, children }) {
-  return (
-    <div className="flex gap-4">
-      <div className="flex flex-col items-center" style={{ paddingTop: 18 }}>
-        <span
-          className="flex items-center justify-center shrink-0"
-          style={{
-            width: 32, height: 32, borderRadius: 999, fontSize: 14, fontWeight: 800,
-            color: open ? C.white : C.inkSoft,
-            background: open ? C.ink : C.paperDim,
-            border: `1.5px solid ${open ? C.ink : C.line}`,
-          }}
-        >
-          {index + 1}
-        </span>
-        {!isLast && <span style={{ width: 2, flex: 1, minHeight: 24, background: C.line, marginTop: 6 }} />}
-      </div>
-
-      <div className="flex-1" style={{ borderRadius: 18, border: `2px solid ${open ? C.ink : C.line}`, overflow: 'hidden', marginBottom: isLast ? 0 : 8 }}>
-        <button onClick={onToggle} className="w-full flex items-center justify-between px-5 py-4" style={{ background: C.white, cursor: 'pointer' }}>
-          <span style={{ fontSize: 17, fontWeight: 700, color: C.ink }}>{title}</span>
-          <span className="flex items-center gap-2.5">
-            <span style={{ fontSize: 14, color: C.muted, fontWeight: 600 }}>{summary}</span>
-            <ChevronDown size={18} style={{ color: C.muted, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
-          </span>
-        </button>
-        {open && <div className="px-5 pb-5" style={{ background: C.white }}>{children}</div>}
-      </div>
     </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════
-// پیش‌نمایش لایت‌باکس — عنصر امضادار صفحه: سوییچ نور واقعی
-// ════════════════════════════════════════════════════════════
-function LightboxPreview({ selections, lightOn, onToggleLight, sizeScale }) {
-  const { shape, material, corner } = selections;
-  const mat = MATERIALS.find(m => m.id === material);
-  const clip = SHAPE_CLIP[shape];
-  const radius = corner === 'rounded' ? 18 : 2;
+function BacklitPreview({ selections }) {
+  const { shape, material, corner, size } = selections;
+  const texture = MATERIAL_TEXTURE[material];
+  const sizeScale = { xs: 0.62, s: 0.76, m: 0.9, l: 1.04, xl: 1.18 }[size] ?? 0.9;
+  const radius = corner === 'rounded' ? '16px' : '2px';
+  const clip = shape === 'square' ? 'none' : SHAPE_CLIP[shape];
 
   const tiles = [
-    { x: 0, y: 0, scale: 1.2, z: 3 },
-    { x: -86, y: -52, scale: 0.82, z: 2 },
-    { x: 88, y: 46, scale: 0.86, z: 1 },
+    { x: 0,   y: 0,   scale: 1.2,  z: 3 },
+    { x: -95, y: -55, scale: 0.85, z: 2 },
+    { x: 95,  y: 50,  scale: 0.9,  z: 1 },
   ];
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center" style={{ minHeight: 520, padding: '64px 0' }}>
-      {/* درخشش پس‌زمینه */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: lightOn
-            ? `radial-gradient(circle at 50% 45%, ${C.amber}33, transparent 60%)`
-            : `radial-gradient(circle at 50% 45%, #ffffff0d, transparent 60%)`,
-          transition: 'background 500ms ease',
-        }}
-      />
-      <div
-        className="absolute"
-        style={{
-          width: 420, height: 420, borderRadius: 999, top: '50%', left: '50%',
-          transform: 'translate(-50%,-50%)',
-          background: lightOn ? C.amber : '#FFFFFF',
-          opacity: lightOn ? 0.16 : 0.04,
-          filter: 'blur(90px)',
-          transition: 'opacity 500ms ease, background 500ms ease',
-        }}
-      />
+    <div className="relative w-full h-full flex items-center justify-center">
 
-      {/* سوییچ نور — عنصر امضادار */}
-      <button
-        onClick={onToggleLight}
-        className="absolute flex items-center gap-2.5 transition-all"
-        style={{
-          top: 24, insetInlineEnd: 24, zIndex: 10, borderRadius: 999,
-          padding: '8px 8px 8px 16px', background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.16)', cursor: 'pointer', backdropFilter: 'blur(6px)',
-        }}
-        aria-pressed={lightOn}
-        aria-label="روشن و خاموش کردن نور"
-      >
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>نور</span>
-        <span
-          className="relative flex items-center"
-          style={{ width: 42, height: 24, borderRadius: 999, background: lightOn ? C.amber : 'rgba(255,255,255,0.18)', transition: 'background 300ms' }}
-        >
-          <span
-            className="absolute flex items-center justify-center"
-            style={{
-              width: 20, height: 20, borderRadius: 999, background: C.white, top: 2,
-              insetInlineStart: lightOn ? 2 : 20, transition: 'inset-inline-start 300ms ease',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-            }}
-          >
-            {lightOn ? <Sun size={12} style={{ color: C.amberDeep }} /> : <Moon size={12} style={{ color: '#555' }} />}
-          </span>
-        </span>
-      </button>
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-[320px] h-[320px] rounded-full bg-white/[0.07] blur-[90px]" />
+      </div>
 
-      {/* بافت نوری نقطه‌ای */}
-      <div
-        className="absolute inset-0"
-        style={{ opacity: 0.05, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '26px 26px' }}
-      />
+      <div className="absolute inset-0 opacity-[0.04]"
+        style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
 
-      {/* کاشی‌ها */}
-      <div className="relative" style={{ width: 380, height: 380, maxWidth: '78vw', maxHeight: '78vw' }}>
+      <div className="relative w-[260px] h-[260px]">
         {tiles.map((t, i) => {
           const s = sizeScale * t.scale;
-          const base = 180;
+          const baseSize = 120;
           return (
-            <div
-              key={i}
-              className="absolute"
+            <div key={i}
+              className="absolute top-1/2 left-1/2 transition-all duration-500 ease-out"
               style={{
-                top: '50%', left: '50%', width: base * s, height: base * s, zIndex: t.z,
+                width: baseSize * s,
+                height: baseSize * s,
                 transform: `translate(calc(-50% + ${t.x * sizeScale}px), calc(-50% + ${t.y * sizeScale}px))`,
-                animation: `obp-drift ${6 + i}s ease-in-out infinite`,
-                transition: 'width 400ms, height 400ms',
+                zIndex: t.z,
               }}
             >
+              <div className="absolute inset-[-26%] rounded-full bg-white/[0.10] blur-xl -z-10" />
               <div
-                className="w-full h-full relative"
+                className="w-full h-full bg-cover bg-center relative"
                 style={{
-                  backgroundImage: `url(${mat?.texture})`, backgroundSize: 'cover', backgroundPosition: 'center',
-                  clipPath: clip, borderRadius: shape === 'square' ? radius : 0,
-                  boxShadow: lightOn
-                    ? `0 0 50px ${C.amber}55, 0 28px 50px -16px rgba(0,0,0,0.7)`
-                    : '0 20px 40px -16px rgba(0,0,0,0.7)',
-                  transition: 'box-shadow 500ms ease',
-                  animation: lightOn ? `obp-flicker ${9 + i * 2}s ease-in-out infinite` : 'none',
+                  backgroundImage: `url(${texture})`,
+                  clipPath: clip,
+                  borderRadius: shape === 'square' ? radius : 0,
+                  boxShadow: '0 18px 36px -10px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
                 }}
               >
-                <div
-                  className="absolute inset-0"
+                <div className="absolute inset-0 opacity-30"
                   style={{
-                    clipPath: clip, borderRadius: shape === 'square' ? radius : 0,
-                    background: `linear-gradient(135deg, rgba(255,255,255,${lightOn ? 0.4 : 0.18}) 0%, transparent 35%)`,
-                  }}
-                />
+                    clipPath: clip,
+                    borderRadius: shape === 'square' ? radius : 0,
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.5) 0%, transparent 35%)',
+                  }} />
               </div>
             </div>
           );
         })}
-      </div>
-
-      <div className="absolute bottom-8 inset-x-0 text-center">
-        <p style={{ fontSize: 12, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase' }}>
-          {lightOn ? 'روشن — همینجوری شب می‌درخشه' : 'خاموش — حالت روز'}
-        </p>
       </div>
     </div>
   );

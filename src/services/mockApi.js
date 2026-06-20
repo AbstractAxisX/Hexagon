@@ -43,10 +43,6 @@ export async function getSession(sessionId) {
 }
 
 // POST /api/order/price
-// ──────────────────────────────────────────────────────────────
-// این تابع یه AbortSignal هم می‌گیره تا اگه در حین درخواست
-// تنظیمات عوض شد، درخواست قدیمی کنسل بشه (debounce امن)
-// ──────────────────────────────────────────────────────────────
 export async function fetchPrice(orderPayload, signal) {
   await fakeDelay(350, signal);
 
@@ -55,7 +51,7 @@ export async function fetchPrice(orderPayload, signal) {
   //   method: 'POST',
   //   headers: { 'Content-Type': 'application/json' },
   //   body: JSON.stringify(orderPayload),
-  //   signal,   // ← پاس بده تا abort کار کنه
+  //   signal,
   // });
   // if (!res.ok) throw new ApiError(res.status, await res.text());
   // return res.json();
@@ -66,6 +62,50 @@ export async function fetchPrice(orderPayload, signal) {
   return {
     totalPrice: tileCount * basePrice,
     breakdown: { pricePerTile: basePrice, tileCount, currency: 'IRR' },
+  };
+}
+
+// ============================================================
+// POST /api/cart/add
+// ──────────────────────────────────────────────────────────────
+// خروجی طرح (عکس باکیفیت) + اطلاعات سفارش رو می‌گیره،
+// یه آیتم سبد خرید برمی‌گردونه.
+// ورودی: { previewDataUrl, orderPayload }
+// خروجی: { cartItemId, previewUrl, summary }
+// ============================================================
+export async function addToCart({ previewDataUrl, orderPayload }) {
+  await fakeDelay(500);
+
+  if (!previewDataUrl) throw new ApiError(400, 'تصویر پیش‌نمایش الزامی است');
+
+  // TODO → fetch واقعی:
+  // یادت باشه dataURL سنگینه؛ یا base64 بفرست یا با dataUrlToBlob تبدیلش کن
+  // و به‌صورت FormData بفرست تا حجم درخواست کمتر بشه.
+  //
+  // const blob = dataUrlToBlob(previewDataUrl);
+  // const formData = new FormData();
+  // formData.append('preview', blob, 'design.png');
+  // formData.append('orderData', JSON.stringify(orderPayload));
+  // const res = await fetch('/api/cart/add', { method: 'POST', body: formData });
+  // if (!res.ok) throw new ApiError(res.status, await res.text());
+  // return res.json();
+
+  const tileCount = orderPayload.tiles?.length ?? 0;
+  const basePrice = getPricePerTile(orderPayload.config);
+  const totalPrice = tileCount * basePrice;
+
+  return {
+    cartItemId: crypto.randomUUID(),
+    previewUrl: previewDataUrl, // فعلاً همون dataURL محلی، بعداً URL واقعی از سرور میاد
+    addedAt: new Date().toISOString(),
+    summary: {
+      tileCount,
+      shape:    orderPayload.config.shape,
+      size:     orderPayload.config.size,
+      material: orderPayload.config.material,
+      corner:   orderPayload.config.corner,
+      totalPrice,
+    },
   };
 }
 

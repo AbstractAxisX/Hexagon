@@ -31,6 +31,15 @@ export const CircleTile = {
     }
 
     // ---------------------------------------------------------
+    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی (دایره)
+    // ---------------------------------------------------------
+    const makeShapeClip = () => new fabric.Circle({
+      radius: radius,
+      originX: 'center',
+      originY: 'center',
+    });
+
+    // ---------------------------------------------------------
     // ۲. مدیریت لایه‌های متن
     // ---------------------------------------------------------
     const textObjects = [];
@@ -68,7 +77,14 @@ export const CircleTile = {
                 }) : null,
 
                 selectable: false,
-                evented: false
+                evented: false,
+
+                // ✅ فیکس: متن از مرز دایره بیرون نمی‌زنه
+                clipPath: (() => {
+                  const clip = makeShapeClip();
+                  clip.set({ left: -relX, top: -relY });
+                  return clip;
+                })(),
             });
             textObjects.push(textObj);
         });
@@ -82,7 +98,12 @@ export const CircleTile = {
                 if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
                 if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
             }
-            textBox.set({ selectable: false, evented: false });
+            textBox.set({
+              selectable: false,
+              evented: false,
+              // ✅ فیکس: محدود به مرز دایره
+              clipPath: makeShapeClip(),
+            });
             textObjects.push(textBox);
         }
     }

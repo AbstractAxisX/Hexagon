@@ -1,7 +1,21 @@
 import { create } from 'zustand';
 import { getNeighbors } from '../utils/hexMath';
 import { getSquareNeighbors } from '../utils/squareMath';
-import { fetchPrice } from '../services/mockApi'; // ← مسیر رو با ساختار پروژه‌ات تنظیم کن
+import { fetchPrice, addToCart } from '../services/mockApi';
+import { saveDesignToLocalStorage, loadDesignFromLocalStorage } from '../utils/persistDesign';
+
+// ── ذخیره خودکار طرح: debounce ساده تا هر تغییر کوچیک رایت نزنه ──
+let _saveTimer = null;
+function schedulePersist(store) {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    const state = store.getState();
+    saveDesignToLocalStorage({
+      globalSettings: state.globalSettings,
+      tiles: state.tiles,
+    });
+  }, 500);
+}
 
 // ── ریل‌تایم قیمت: debounce + AbortController ──
 let _priceController = null;
@@ -73,6 +87,12 @@ setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
 
   totalPrice: 0,
   isCalculating: false,
+
+  // ── سبد خرید ──────────────────────────────────────────────
+  cartItem: null,        // { cartItemId, previewUrl, summary, addedAt }
+  isExporting: false,
+  exportError: null,
+  currentView: 'editor',  // 'editor' | 'cart'
 
   setGlobalSetting: (key, value) => {
     set((state) => ({
@@ -310,6 +330,45 @@ updateTileText: (id, textConfig) => {
   // این متد برای فراخوانی دستی باقیه (مثلاً دکمه رفرش قیمت)
   fetchPriceFromBackend: () => schedulePriceFetch(useAppStore),
 
+  // ════════════════════════════════════════════════════════════
+  // خروجی گرفتن از طرح و افزودن به سبد خرید
+  // previewDataUrl: عکسی که با exportDesignAsImage گرفته شده
+  // ════════════════════════════════════════════════════════════
+  addDesignToCart: async (previewDataUrl) => {
+    set({ isExporting: true, exportError: null });
+    try {
+      const orderPayload = get().generateOrderPayload();
+      const result = await addToCart({ previewDataUrl, orderPayload });
+      set({
+        cartItem: result,
+        isExporting: false,
+        currentView: 'cart', // ← خودکار برو صفحه سبد خرید
+      });
+      return result;
+    } catch (err) {
+      set({ isExporting: false, exportError: err.message || 'خطا در افزودن به سبد خرید' });
+      throw err;
+    }
+  },
+
+  setCurrentView: (view) => set({ currentView: view }),
+
+  clearCart: () => set({ cartItem: null }),
+
+  // ════════════════════════════════════════════════════════════
+  // بازیابی طرح ذخیره‌شده از localStorage (دکمه «ادامه طراحی»)
+  // ════════════════════════════════════════════════════════════
+  loadSavedDesign: () => {
+    const saved = loadDesignFromLocalStorage();
+    if (!saved) return false;
+    set({
+      globalSettings: { ...get().globalSettings, ...saved.globalSettings },
+      tiles: saved.tiles,
+    });
+    schedulePriceFetch(useAppStore);
+    return true;
+  },
+
   moveOrSwapTile: (draggedId, targetCoord) => {
     set(state => {
       const draggedTile = state.tiles.find(t => t.id === draggedId);
@@ -504,5 +563,16 @@ function findClosestEmptySpotSquare(tiles) {
 
   return finalCandidates[0] || { x: 0, y: 0 };
 }
+
+// ════════════════════════════════════════════════════════════
+// ذخیره خودکار طرح در localStorage
+// هر بار tiles یا globalSettings عوض شد، با debounce ذخیره میشه
+// (مستقل از اینکه از کدوم متد تغییر اومده — یعنی هیچ‌جا فراموش نمیشه)
+// ════════════════════════════════════════════════════════════
+useAppStore.subscribe((state, prevState) => {
+  if (state.tiles !== prevState.tiles || state.globalSettings !== prevState.globalSettings) {
+    schedulePersist(useAppStore);
+  }
+});
 
 export default useAppStore;
