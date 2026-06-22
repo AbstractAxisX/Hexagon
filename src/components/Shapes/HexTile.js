@@ -1,23 +1,22 @@
 import { fabric } from 'fabric';
 import { getHexPoints, getHexPathData, HEX_MATH } from '../../utils/hexMath';
 import { createClippedImage } from '../../utils/fabricUtils';
+import { createDefaultTextbox } from '../../utils/textUtils';
+import { createTextLayers } from '../../utils/textLayerUtils';
 
 export const HexTile = {
   create: (tileData, pixelPos, canvas) => {
-    // گرفتن همه داده‌های لازم
     const { id, q, r, content, corner, textConfig } = tileData;
     const { x, y } = pixelPos;
-    
-    // تشخیص نوع گوشه
+
     const isRounded = corner === 'rounded';
-    const cornerRadius = 10; 
+    const cornerRadius = 10;
 
     // ---------------------------------------------------------
-    // ۱. شکل پایه (Background Shape)
+    // ۱. شکل پایه
     // ---------------------------------------------------------
     let shapeObj;
     if (isRounded) {
-      // حالت گرد: Path
       shapeObj = new fabric.Path(getHexPathData(cornerRadius), {
         fill: '#FFFFFF',
         stroke: '#CBD5E1',
@@ -30,7 +29,6 @@ export const HexTile = {
         evented: false
       });
     } else {
-      // حالت تیز: Polygon
       shapeObj = new fabric.Polygon(getHexPoints(), {
         fill: '#FFFFFF',
         stroke: '#CBD5E1',
@@ -44,15 +42,12 @@ export const HexTile = {
       });
     }
 
-    // اعمال رنگ پس‌زمینه
     if (content?.type === 'color' && content.data) {
       shapeObj.set({ fill: content.data });
     }
 
     // ---------------------------------------------------------
-    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی
-    // (هر بار یه نمونه تازه لازمه، fabric اجازه‌ی استفاده مجدد یه
-    // clipPath روی چند آبجکت رو نمی‌ده)
+    // clipPath factory
     // ---------------------------------------------------------
     const makeShapeClip = () => {
       if (isRounded) {
@@ -66,77 +61,33 @@ export const HexTile = {
     };
 
     // ---------------------------------------------------------
-    // ۲. مدیریت لایه‌های متن
+    // ۲. لایه‌های متن — shared utility
     // ---------------------------------------------------------
-    const textObjects = [];
-    const scaleFactor = 1.5; 
+    const textObjects = createTextLayers(textConfig, {
+      clipPathFactory: makeShapeClip,
+      selectable:      false,
+    });
 
-    if (textConfig?.layers && Array.isArray(textConfig.layers)) {
-        // الف) لایه‌های جدید
-        textConfig.layers.forEach(layer => {
-            const safeLeft = layer.left ?? layer.previewLeft ?? 150;
-            const safeTop = layer.top ?? layer.previewTop ?? 150;
-
-            const relX = (safeLeft - 150) / scaleFactor;
-            const relY = (safeTop - 150) / scaleFactor;
-
-            const textObj = new fabric.Text(layer.text || '', {
-                left: relX,
-                top: relY,
-                fontSize: (layer.fontSize || 24) / scaleFactor,
-                fontFamily: layer.fontFamily || 'Vazirmatn',
-                fill: layer.fill || '#000000',
-                originX: 'center',
-                originY: 'center',
-                textAlign: 'center',
-                angle: layer.angle || 0,
-                stroke: layer.stroke || null,
-                strokeWidth: (layer.strokeWidth || 0) / scaleFactor,
-                textBackgroundColor: layer.textBackgroundColor || null,
-                shadow: (layer.shadowBlur > 0 || layer.shadowOffsetX !== 0 || layer.shadowOffsetY !== 0) ? new fabric.Shadow({
-                    color: layer.shadowColor || '#000000',
-                    blur: (layer.shadowBlur || 0) / scaleFactor,
-                    offsetX: (layer.shadowOffsetX || 0) / scaleFactor,
-                    offsetY: (layer.shadowOffsetY || 0) / scaleFactor
-                }) : null,
-                selectable: false,
-                evented: false,
-
-                // ✅ فیکس: متن هیچ‌وقت از مرز شکل کاشی بیرون نمی‌زنه
-                // چون clipPath نسبت به مرکز گروه محاسبه میشه (نه نسبت به خود متن)،
-                // باید موقعیت متن رو از clipPath کم کنیم تا هم‌راستا بمونن.
-                clipPath: (() => {
-                  const clip = makeShapeClip();
-                  clip.set({
-                    left: -relX,
-                    top: -relY,
-                  });
-                  return clip;
-                })(),
-            });
-            textObjects.push(textObj);
+    // Legacy fallback
+    if (textObjects.length === 0) {
+      const initialText = textConfig?.text || content?.text || '';
+      if (initialText) {
+        const safeWidth = (HEX_MATH.SQRT3 * HEX_MATH.RADIUS) * 0.85;
+        const legacyText = new fabric.Textbox(initialText, {
+          width: safeWidth,
+          fontSize: textConfig?.fontSize || 22,
+          fontFamily: textConfig?.fontFamily || 'Vazirmatn',
+          fill: textConfig?.fill || '#000000',
+          textAlign: 'center',
+          originX: 'center',
+          originY: 'center',
+          splitByGrapheme: true,
+          selectable: false,
+          evented: false,
+          clipPath: makeShapeClip(),
         });
-    } else {
-        // ب) پشتیبانی Legacy
-        const initialText = textConfig?.text || content?.text || '';
-        if (initialText) {
-            const safeWidth = (HEX_MATH.SQRT3 * HEX_MATH.RADIUS) * 0.85;
-            const legacyText = new fabric.Textbox(initialText, {
-                width: safeWidth,
-                fontSize: textConfig?.fontSize || 22,
-                fontFamily: textConfig?.fontFamily || 'Vazirmatn',
-                fill: textConfig?.fill || '#000000',
-                textAlign: 'center',
-                originX: 'center',
-                originY: 'center',
-                splitByGrapheme: true,
-                selectable: false,
-                evented: false,
-                // ✅ فیکس: همین‌جا هم محدود به شکل کاشی
-                clipPath: makeShapeClip(),
-            });
-            textObjects.push(legacyText);
-        }
+        textObjects.push(legacyText);
+      }
     }
 
     // ---------------------------------------------------------
@@ -164,58 +115,31 @@ export const HexTile = {
     });
 
     // ---------------------------------------------------------
-    // ۴. هندل کردن عکس (اصلاح شده)
+    // ۴. هندل کردن عکس — reverted: بدون targetSize
     // ---------------------------------------------------------
     if (content?.type === 'image' && content.data) {
-      const clipFactory = () => {
-        if (isRounded) {
-          return new fabric.Path(getHexPathData(cornerRadius), {
-            originX: 'center', originY: 'center'
-          });
-        } else {
-          return new fabric.Polygon(getHexPoints(), {
-            originX: 'center', originY: 'center'
-          });
-        }
-      };
+      const clipFactory = makeShapeClip;
 
       createClippedImage(content.data, clipFactory, (img) => {
         if (!group) return;
 
-        // الف) اضافه کردن عکس
         group.add(img);
-        
-        // ب) شفاف کردن شکل زیرین
         shapeObj.set({ fill: 'transparent', stroke: 'transparent' });
 
-        // ج) بوردر روی عکس
-        let border;
-        if (isRounded) {
-             border = new fabric.Path(getHexPathData(cornerRadius), {
-                fill: 'transparent',
-                stroke: '#CBD5E1',
-                strokeWidth: 2,
-                originX: 'center',
-                originY: 'center',
-                selectable: false, evented: false
-            });
-        } else {
-             border = new fabric.Polygon(getHexPoints(), {
-                fill: 'transparent',
-                stroke: '#CBD5E1',
-                strokeWidth: 2,
-                originX: 'center',
-                originY: 'center',
-                selectable: false, evented: false
-            });
-        }
+        const border = makeShapeClip();
+        border.set({
+          fill: 'transparent',
+          stroke: '#CBD5E1',
+          strokeWidth: 2,
+          selectable: false,
+          evented: false
+        });
         group.add(border);
 
-        // د) ✅ فیکس نهایی: استفاده دقیق از روش SquareTile
         group.getObjects().forEach(obj => {
-            if (obj.type === 'text' || obj.type === 'textbox') {
-                obj.bringToFront(); // دقیقا مثل SquareTile.js
-            }
+          if (obj.type === 'text' || obj.type === 'textbox') {
+            obj.bringToFront();
+          }
         });
 
         if (canvas) canvas.requestRenderAll();

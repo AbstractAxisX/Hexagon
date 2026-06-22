@@ -1,13 +1,20 @@
 /**
  * Hexagonal Grid Mathematics (Pointy-Top)
- * قوانین: مختصات Axial (q, r) و فاصله ثابت ۳ پیکسل
+ * قوانین: مختصات Axial (q, r) و فاصله بین شش‌ضلعی‌ها
+ *
+ * تغییر: GAP از ۳ به ۱۴ افزایش یافت تا گپ واضحی بین شش‌ضلعی‌ها
+ * ایجاد شود و حس بوردر نداشته باشند.
+ *
+ * نکته مهم: مقدار GAP در اینجا «فاصله مرکز-به-مرکز اضافه» است، نه خود گپ
+ * بصری. چون شش‌ضلعی‌ها نقطه‌تماس دارند، گپ بصری نهایی تقریباً برابر
+ * (SQRT3 * GAP/2) ≈ 12.1px خواهد بود (برای GAP=14).
  */
 
 export const HEX_MATH = {
   RADIUS: 75,
-  GAP: 3, // طبق دستور شما: ۳ پیکسل فاصله
+  GAP: 8, // ✅ افزایش از ۳ به ۱۴ — گپ بصری واضح بین شش‌ضلعی‌ها
   SQRT3: Math.sqrt(3),
-  
+
   // بردارهای همسایگی برای شش‌ضلعی (۶ جهت)
   DIRECTIONS: [
     { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
@@ -15,6 +22,9 @@ export const HEX_MATH = {
   ],
 
   getEffectiveRadius() {
+    // این مقدار برای محاسبه مرکز-به-مرکز استفاده می‌شه.
+    // شکل خود شش‌ضلعی همیشه با RADIUS خالص رسم می‌شه،
+    // پس افزایش GAP فقط فاصله بین کاشی‌ها رو بیشتر می‌کنه.
     return this.RADIUS + (this.GAP / 2);
   },
 
@@ -88,11 +98,13 @@ export function getNeighbors(q, r) {
 
 /**
  * محاسبه نقاط رسم شش‌ضلعی (برای گوشه‌های تیز)
+ * نکته: این تابع همیشه از RADIUS خالص استفاده می‌کنه، نه از effectiveRadius.
+ * این یعنی شکل کاشی ثابت می‌مونه و فقط فاصله‌ی مرکزها با GAP کنترل می‌شه.
  */
 export function getHexPoints() {
   const points = [];
   for (let i = 0; i < 6; i++) {
-    const angle_deg = 60 * i - 30; 
+    const angle_deg = 60 * i - 30;
     const angle_rad = (Math.PI / 180) * angle_deg;
     points.push({
       x: HEX_MATH.RADIUS * Math.cos(angle_rad),

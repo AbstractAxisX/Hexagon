@@ -1,5 +1,6 @@
 export const SQUARE_MATH = {
-  SIZE: 120, // سایز هر خانه
+  SIZE: 120, // سایز هر خانه (مرکز-به-مرکز)
+  GAP: 14,   // ✅ فاصله بصری بین مربع‌ها
 };
 
 /**
@@ -26,17 +27,14 @@ export function pixelToSquare(pixelX, pixelY, centerX = 0, centerY = 0) {
  */
 export function getSquareNeighbors(x, y) {
   return [
-    // ۴ جهت اصلی (مثل قبل)
-    { x: x,     y: y - 1 }, // بالا
-    { x: x,     y: y + 1 }, // پایین
-    { x: x - 1, y: y     }, // چپ
-    { x: x + 1, y: y     }, // راست
-    
-    // ✅ ۴ جهت مورب (جدید - برای پیشنهادهای ضربدری)
-    { x: x - 1, y: y - 1 }, // بالا-چپ
-    { x: x + 1, y: y - 1 }, // بالا-راست
-    { x: x - 1, y: y + 1 }, // پایین-چپ
-    { x: x + 1, y: y + 1 }, // پایین-راست
+    { x: x,     y: y - 1 },
+    { x: x,     y: y + 1 },
+    { x: x - 1, y: y     },
+    { x: x + 1, y: y     },
+    { x: x - 1, y: y - 1 },
+    { x: x + 1, y: y - 1 },
+    { x: x - 1, y: y + 1 },
+    { x: x + 1, y: y + 1 },
   ];
 }
 

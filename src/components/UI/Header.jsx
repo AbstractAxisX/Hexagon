@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
-import { Settings, Plus, Layout, Loader2, ShoppingCart, AlertCircle, Download, Check } from 'lucide-react';
+import {
+  Plus, Loader2, ShoppingCart, AlertCircle,
+  Download, Check, ChevronDown, Save, Hexagon, Settings as SettingsIcon,
+} from 'lucide-react';
 import useAppStore from '../../store/useAppStore';
 import { exportDesignAsImage, downloadImage } from './exportCanvas';
+import BackgroundModal from './BackgroundModal';
+import { APP_CONFIG } from '../../data/appConfig';
+
+// ─── تبدیل id به label فارسی ────────────────────────
+const getLabel = (configKey, id) => {
+  const list = APP_CONFIG[configKey] || [];
+  return list.find(item => item.id === id)?.name
+      ?? list.find(item => item.id === id)?.label
+      ?? id;
+};
 
 const Header = () => {
   const addTile          = useAppStore(state => state.addTile);
@@ -11,16 +24,24 @@ const Header = () => {
   const tiles            = useAppStore(state => state.tiles);
   const fabricCanvas     = useAppStore(state => state.fabricCanvas);
   const wallColor        = useAppStore(state => state.wallColor);
+  const setWallColor     = useAppStore(state => state.setWallColor);
   const isExporting      = useAppStore(state => state.isExporting);
   const exportError      = useAppStore(state => state.exportError);
   const addDesignToCart  = useAppStore(state => state.addDesignToCart);
+  const globalSettings   = useAppStore(state => state.globalSettings);
 
-  // وضعیت جدا برای دکمه‌ی دانلود مستقیم (مستقل از افزودن به سبد خرید)
-  const [downloadState, setDownloadState] = useState('idle'); // idle | loading | done | error
+  const [downloadState, setDownloadState] = useState('idle');
+  const [bgOpen, setBgOpen] = useState(false);
 
   const formatted = new Intl.NumberFormat('fa-IR').format(totalPrice);
 
-  // ── افزودن به سبد خرید (می‌بره صفحه CartPage) ──
+  // ── جزئیات طرح از globalSettings ──
+  const shapeLabel    = getLabel('shapes',    globalSettings.shape);
+  const materialLabel = getLabel('materials', globalSettings.material);
+  const sizeLabel     = getLabel('sizes',     globalSettings.size);
+  const cornerLabel   = getLabel('corners',   globalSettings.corner);
+
+  // ── افزودن به سبد خرید ──
   const handleAddToCart = async () => {
     if (tiles.length === 0 || isExporting) return;
     try {
@@ -31,7 +52,7 @@ const Header = () => {
     }
   };
 
-  // ── دانلود مستقیم عکس (برای نشون دادن به کسی، بدون رفتن به سبد خرید) ──
+  // ── دانلود مستقیم عکس ──
   const handleDownload = async () => {
     if (tiles.length === 0 || downloadState === 'loading') return;
     setDownloadState('loading');
@@ -47,113 +68,188 @@ const Header = () => {
     }
   };
 
+  // ── ذخیره طرح ──
+  const handleSaveDesign = () => {
+    if (tiles.length === 0) return;
+    handleDownload();
+  };
+
+  // ── آیتم جزئیات طرح ──
+  const DetailItem = ({ label, value }) => (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px] text-slate-400">{label}:</span>
+      <span className="text-xs font-medium text-slate-700">{value}</span>
+    </div>
+  );
+
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm relative shrink-0">
+    <>
+      <header className="bg-white relative z-20 shrink-0 shadow-sm select-none">
 
-      {/* LOGO */}
-      <div className="flex items-center gap-3">
-        <div className="bg-blue-600 p-2 rounded-lg text-white">
-          <Layout size={20} />
+        {/* ═══════ ردیف اول (Top Bar) ═══════ */}
+        <div className="h-14 flex items-center justify-between px-6 relative">
+
+          {/* LOGO — فقط آیکون نارنجی، بدون متن */}
+          <div className="flex items-center">
+            <Hexagon
+              size={26}
+              className="text-[#FF6B35]"
+              fill="currentColor"
+              stroke="none"
+            />
+          </div>
+
+          {/* CENTER: جزئیات طرح (شکل · سایز · متریال · گوشه) */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" dir='rtl'>
+            {tiles.length === 0 ? (
+              <span className="text-sm text-slate-400">طرح خالی است — اولین کاشی را اضافه کنید</span>
+            ) : isCalculating ? (
+              <div className="flex items-center gap-2 text-slate-400">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-sm">در حال محاسبه...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-50 border border-slate-200">
+                <DetailItem label="شکل"   value={shapeLabel} />
+                <span className="w-px h-3 bg-slate-200" />
+                <DetailItem label="سایز"   value={sizeLabel} />
+                <span className="w-px h-3 bg-slate-200" />
+                <DetailItem label="متریال" value={materialLabel} />
+                <span className="w-px h-3 bg-slate-200" />
+                <DetailItem label="گوشه"   value={cornerLabel} />
+                <span className="w-px h-3 bg-slate-200" />
+                <DetailItem label="تعداد"  value={`${tiles.length} عدد`} />
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: قیمت + سبد خرید */}
+          <div className="flex items-center gap-3">
+
+            {exportError && (
+              <span className="flex items-center gap-1.5 text-xs text-red-500" title={exportError}>
+                <AlertCircle size={14} /> خطا
+              </span>
+            )}
+
+            {tiles.length > 0 && !isCalculating && (
+              <div className="flex items-baseline gap-1.5 px-2">
+                <span className="text-base font-bold text-slate-800 tabular-nums">{formatted}</span>
+                <span className="text-xs text-slate-400">تومان</span>
+              </div>
+            )}
+
+            {/* دکمه نارنجی «افزودن به سبد» */}
+            <button
+              onClick={handleAddToCart}
+              disabled={tiles.length === 0 || isExporting}
+              className="flex items-center gap-2 px-4 h-10 text-sm font-semibold
+                         bg-[#FF6B35] text-white hover:bg-[#E55A2B]
+                         disabled:opacity-40 disabled:cursor-not-allowed
+                         transition-colors"
+            >
+              {isExporting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ShoppingCart size={16} />
+              )}
+              <span>افزودن به سبد</span>
+            </button>
+          </div>
         </div>
-        <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-          Modulari <span className="text-blue-600">Editor</span>
-        </h1>
-      </div>
 
-      {/* CENTER: قیمت لحظه‌ای */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        {tiles.length === 0 ? (
-          <span className="text-sm text-slate-400">هنوز کاشی‌ای اضافه نشده</span>
-        ) : isCalculating ? (
-          <div className="flex items-center gap-2 text-slate-400">
-            <Loader2 size={16} className="animate-spin" />
-            <span className="text-sm">در حال محاسبه...</span>
+        {/* خط جداکننده نازک */}
+        <div className="h-px bg-slate-200" />
+
+        {/* ═══════ ردیف دوم (Secondary Menu) ═══════ */}
+        <div className="h-11 flex items-center justify-between px-6">
+
+          {/* LEFT: منوی فرعی */}
+          <div className="flex items-center gap-1">
+
+            {/* ── پس‌زمینه (باز کردن مودال رنگ) ── */}
+            <button
+              onClick={() => setBgOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <span
+                className="w-3.5 h-3.5 border border-slate-300"
+                style={{ background: wallColor }}
+              />
+              <span>پس‌زمینه</span>
+              <ChevronDown size={14} className="text-[#FF6B35]" />
+            </button>
+
+            {/* ── تنظیمات ── */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <SettingsIcon size={14} className="text-slate-500" />
+              <span>تنظیمات</span>
+              <ChevronDown size={14} className="text-[#FF6B35]" />
+            </button>
+
+            {/* ── ذخیره طرح ── */}
+            <button
+              onClick={handleSaveDesign}
+              disabled={tiles.length === 0 || downloadState === 'loading'}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100
+                         disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Save size={14} className="text-slate-500" />
+              <span>ذخیره طرح</span>
+            </button>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 bg-slate-100 px-5 py-2 rounded-xl">
-            <span className="text-sm text-slate-500">قیمت کل:</span>
-            <span className="text-base font-bold text-blue-600 tabular-nums">{formatted}</span>
-            <span className="text-xs text-slate-400">تومان</span>
+
+          {/* RIGHT: افزودن کاشی + دانلود */}
+          <div className="flex items-center gap-2">
+
+            <button
+              onClick={handleDownload}
+              disabled={tiles.length === 0 || downloadState === 'loading'}
+              title="دانلود عکس طرح"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border transition-colors
+                ${downloadState === 'done'
+                  ? 'bg-green-50 text-green-600 border-green-200'
+                  : downloadState === 'error'
+                    ? 'bg-red-50 text-red-500 border-red-200'
+                    : 'text-slate-600 hover:bg-slate-50 border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed'}`}
+            >
+              {downloadState === 'loading' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : downloadState === 'done' ? (
+                <Check size={14} />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>
+                {downloadState === 'loading' ? '...'
+                  : downloadState === 'done' ? 'دانلود شد'
+                  : 'دانلود عکس'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => addTile()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium
+                         bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+            >
+              <Plus size={14} />
+              <span>افزودن کاشی</span>
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      </header>
 
-      {/* RIGHT ACTIONS */}
-      <div className="flex items-center gap-2.5">
-
-        {exportError && (
-          <span className="flex items-center gap-1.5 text-xs text-red-500">
-            <AlertCircle size={14} /> {exportError}
-          </span>
-        )}
-
-        {/* دکمه دانلود مستقیم عکس */}
-        <button
-          onClick={handleDownload}
-          disabled={tiles.length === 0 || downloadState === 'loading'}
-          title="دانلود عکس طرح (برای نمایش به دیگران)"
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
-            ${downloadState === 'done'
-              ? 'bg-green-50 text-green-600'
-              : downloadState === 'error'
-                ? 'bg-red-50 text-red-500'
-                : 'text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed'}`}
-        >
-          {downloadState === 'loading' ? (
-            <Loader2 size={17} className="animate-spin" />
-          ) : downloadState === 'done' ? (
-            <Check size={17} />
-          ) : (
-            <Download size={17} />
-          )}
-          <span className="hidden lg:inline">
-            {downloadState === 'loading' ? 'در حال آماده‌سازی...'
-              : downloadState === 'done' ? 'دانلود شد'
-              : 'دانلود عکس'}
-          </span>
-        </button>
-
-        {/* دکمه افزودن به سبد خرید */}
-        <button
-          onClick={handleAddToCart}
-          disabled={tiles.length === 0 || isExporting}
-          title="افزودن طرح به سبد خرید"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-        >
-          {isExporting ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              <span>در حال آماده‌سازی...</span>
-            </>
-          ) : (
-            <>
-              <ShoppingCart size={18} />
-              <span>افزودن به سبد خرید</span>
-            </>
-          )}
-        </button>
-
-        <div className="w-px h-8 bg-slate-200 mx-1" />
-
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-all"
-        >
-          <Settings size={18} />
-          <span className="text-sm font-medium">تنظیمات</span>
-        </button>
-
-        <div className="w-px h-8 bg-slate-200 mx-1" />
-
-        <button
-          onClick={() => addTile()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium shadow-md shadow-blue-200 hover:shadow-lg transition-all active:scale-95"
-        >
-          <Plus size={18} />
-          <span>افزودن کاشی</span>
-        </button>
-      </div>
-    </header>
+      {/* ═════ مودال رنگ پس‌زمینه ═════ */}
+      <BackgroundModal
+        isOpen={bgOpen}
+        onClose={() => setBgOpen(false)}
+        currentColor={wallColor}
+        onSelect={(c) => setWallColor(c)}
+      />
+    </>
   );
 };
 

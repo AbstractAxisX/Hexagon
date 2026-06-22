@@ -2,18 +2,15 @@ import { fabric } from 'fabric';
 import { SQUARE_MATH } from '../../utils/squareMath';
 import { createClippedImage } from '../../utils/fabricUtils';
 import { createDefaultTextbox } from '../../utils/textUtils';
-import { createTextLayers } from '../../utils/textLayerUtils';
 
 export const CircleTile = {
   create: (tileData, pixelPos, canvas) => {
     const { id, x: gridX, y: gridY, content, textConfig } = tileData;
     const { x, y } = pixelPos;
-    // ✅ backward-compatible
-    const GAP = SQUARE_MATH.GAP ?? 6;
-    const radius = (SQUARE_MATH.SIZE - GAP) / 2;
+    const radius = (SQUARE_MATH.SIZE - 6) / 2;
 
     // ---------------------------------------------------------
-    // ۱. شکل پایه
+    // ۱. شکل پایه (Background Shape)
     // ---------------------------------------------------------
     const shapeObj = new fabric.Circle({
       radius: radius,
@@ -24,6 +21,7 @@ export const CircleTile = {
       originY: 'center',
       objectCaching: false,
       name: 'tile-bg',
+      // حیاتی برای درگ شدن گروه
       selectable: false,
       evented: false
     });
@@ -33,7 +31,7 @@ export const CircleTile = {
     }
 
     // ---------------------------------------------------------
-    // clipPath factory
+    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی (دایره)
     // ---------------------------------------------------------
     const makeShapeClip = () => new fabric.Circle({
       radius: radius,
@@ -42,30 +40,72 @@ export const CircleTile = {
     });
 
     // ---------------------------------------------------------
-    // ۲. لایه‌های متن — shared utility
+    // ۲. مدیریت لایه‌های متن
     // ---------------------------------------------------------
-    const textObjects = createTextLayers(textConfig, {
-      clipPathFactory: makeShapeClip,
-      selectable:      false,
-    });
+    const textObjects = [];
+    const scaleFactor = 1.5;
 
-    // Legacy fallback
-    if (textObjects.length === 0) {
-      const initialText = textConfig?.text || content?.text || '';
-      if (initialText) {
-        const textBox = createDefaultTextbox((radius * 2) * 0.85, initialText);
-        if (textConfig) {
-          if (textConfig.fill) textBox.set('fill', textConfig.fill);
-          if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
-          if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
-        }
-        textBox.set({
-          selectable: false,
-          evented: false,
-          clipPath: makeShapeClip(),
+    if (textConfig?.layers && Array.isArray(textConfig.layers)) {
+        // الف) لایه‌های جدید
+        textConfig.layers.forEach(layer => {
+            const safeLeft = layer.left ?? layer.previewLeft ?? 150;
+            const safeTop = layer.top ?? layer.previewTop ?? 150;
+
+            const relX = (safeLeft - 150) / scaleFactor;
+            const relY = (safeTop - 150) / scaleFactor;
+
+            const textObj = new fabric.Text(layer.text || '', {
+                left: relX,
+                top: relY,
+                fontSize: (layer.fontSize || 24) / scaleFactor,
+                fontFamily: layer.fontFamily || 'Vazirmatn',
+                fill: layer.fill || '#000000',
+                originX: 'center',
+                originY: 'center',
+                textAlign: 'center',
+                angle: layer.angle || 0,
+                
+                stroke: layer.stroke || null,
+                strokeWidth: (layer.strokeWidth || 0) / scaleFactor,
+                textBackgroundColor: layer.textBackgroundColor || null,
+                
+                shadow: (layer.shadowBlur > 0 || layer.shadowOffsetX !== 0 || layer.shadowOffsetY !== 0) ? new fabric.Shadow({
+                    color: layer.shadowColor || '#000000',
+                    blur: (layer.shadowBlur || 0) / scaleFactor,
+                    offsetX: (layer.shadowOffsetX || 0) / scaleFactor,
+                    offsetY: (layer.shadowOffsetY || 0) / scaleFactor
+                }) : null,
+
+                selectable: false,
+                evented: false,
+
+                // ✅ فیکس: متن از مرز دایره بیرون نمی‌زنه
+                clipPath: (() => {
+                  const clip = makeShapeClip();
+                  clip.set({ left: -relX, top: -relY });
+                  return clip;
+                })(),
+            });
+            textObjects.push(textObj);
         });
-        textObjects.push(textBox);
-      }
+    } else {
+        // ب) نسخه قدیمی
+        const initialText = textConfig?.text || content?.text || '';
+        if (initialText) {
+            const textBox = createDefaultTextbox((radius * 2) * 0.85, initialText);
+            if (textConfig) {
+                if (textConfig.fill) textBox.set('fill', textConfig.fill);
+                if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
+                if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
+            }
+            textBox.set({
+              selectable: false,
+              evented: false,
+              // ✅ فیکس: محدود به مرز دایره
+              clipPath: makeShapeClip(),
+            });
+            textObjects.push(textBox);
+        }
     }
 
     // ---------------------------------------------------------
@@ -81,8 +121,10 @@ export const CircleTile = {
       lockScalingX: true,
       lockScalingY: true,
       lockRotation: true,
+      
       selectable: true,
       evented: true,
+
       shadow: new fabric.Shadow({
         color: 'rgba(0,0,0,0.05)',
         blur: 10,
@@ -93,7 +135,7 @@ export const CircleTile = {
     });
 
     // ---------------------------------------------------------
-    // ۴. هندل کردن عکس — reverted: بدون targetSize
+    // ۴. هندل کردن عکس
     // ---------------------------------------------------------
     if (content?.type === 'image' && content.data) {
       const clipFactory = () => new fabric.Circle({
@@ -105,7 +147,7 @@ export const CircleTile = {
         if (!group || (group.canvas === undefined && !canvas)) return;
 
         group.add(img);
-
+        
         const border = new fabric.Circle({
           radius: radius,
           fill: 'transparent', stroke: '#CBD5E1', strokeWidth: 2,
@@ -115,11 +157,11 @@ export const CircleTile = {
         group.add(border);
 
         shapeObj.set({ fill: 'transparent', stroke: 'transparent' });
-
+        
         group.getObjects().forEach(obj => {
-          if (obj.type === 'text' || obj.type === 'textbox') {
-            obj.bringToFront();
-          }
+            if (obj.type === 'text' || obj.type === 'textbox') {
+                obj.bringToFront();
+            }
         });
 
         if (canvas) canvas.requestRenderAll();
@@ -132,10 +174,9 @@ export const CircleTile = {
 
   createGhost: (gridPos, pixelPos) => {
     const { x, y } = gridPos;
-    const GAP = SQUARE_MATH.GAP ?? 6;
 
     const shapeObj = new fabric.Circle({
-      radius: (SQUARE_MATH.SIZE - GAP) / 2,
+      radius: (SQUARE_MATH.SIZE - 6) / 2,
       fill: 'rgba(0,0,0,0.05)',
       stroke: '#cbd5e1',
       strokeWidth: 2,

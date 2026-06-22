@@ -3,24 +3,39 @@ import { Palette, X, Box, Ruler, Layers } from 'lucide-react';
 import useAppStore from '../../store/useAppStore';
 import { APP_CONFIG } from '../../data/appConfig';
 
-// ─── عکس placeholder برای متریال (از picsum، بعداً از API میاد) ───
+// ─── عکس placeholder برای متریال ───
 const MATERIAL_IMAGES = {
-  forex:      'https://picsum.photos/id/1060/400/300', // سطح سفید/روشن
-  aluminum:   'https://picsum.photos/id/1070/400/300', // متالیک
-  plexiglass: 'https://picsum.photos/id/1080/400/300', // شفاف/براق
+  forex:      'https://picsum.photos/id/1060/400/300',
+  aluminum:   'https://picsum.photos/id/1070/400/300',
+  plexiglass: 'https://picsum.photos/id/1080/400/300',
 };
 
-const SettingsModal = () => {
-  const isOpen        = useAppStore(s => s.isSettingsOpen);
-  const setOpen       = useAppStore(s => s.setSettingsOpen);
-  const wallColor     = useAppStore(s => s.wallColor);
-  const setWallColor  = useAppStore(s => s.setWallColor);
-  const globalSettings   = useAppStore(s => s.globalSettings);
-  const setGlobalSetting = useAppStore(s => s.setGlobalSetting);
-  const fetchPrice    = useAppStore(s => s.fetchPriceFromBackend);
-  const tiles         = useAppStore(s => s.tiles);
+// پالت رنگ پس‌زمینه — مطابق مرجع (دسته‌بندی‌شده)
+const WALL_COLORS = [
+  '#FFFFFF', '#F5F5F5', '#F0E6D2', '#C5D0B3', '#8D8D6E',
+  '#D3D3D3', '#B8B8B8', '#5A5A5A', '#222222', '#000000',
+  '#E6D7D0', '#C8A2B8', '#D67D7D', '#B86B6B', '#FF6B6B',
+  '#DBEAFE', '#93C5FD', '#3B82F6', '#1E3A8A', '#0F172A',
+];
 
-  // ── هر بار که متریال یا سایز عوض میشه قیمت دوباره محاسبه بشه ──
+function isLightColor(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 160;
+}
+
+const SettingsModal = () => {
+  const isOpen            = useAppStore(s => s.isSettingsOpen);
+  const setOpen           = useAppStore(s => s.setSettingsOpen);
+  const wallColor         = useAppStore(s => s.wallColor);
+  const setWallColor      = useAppStore(s => s.setWallColor);
+  const globalSettings    = useAppStore(s => s.globalSettings);
+  const setGlobalSetting  = useAppStore(s => s.setGlobalSetting);
+  const fetchPrice        = useAppStore(s => s.fetchPriceFromBackend);
+  const tiles             = useAppStore(s => s.tiles);
+
   useEffect(() => {
     if (!isOpen || tiles.length === 0) return;
     fetchPrice();
@@ -28,32 +43,39 @@ const SettingsModal = () => {
 
   if (!isOpen) return null;
 
-  const colors = ['#f8fafc','#f1f5f9','#e2e8f0','#fee2e2','#dbeafe','#dcfce7','#1a1a1a'];
-
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
+      {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={() => setOpen(false)}
       />
 
-      <div className="relative bg-white flex flex-col shadow-2xl overflow-hidden w-full rounded-t-2xl pb-safe md:w-[500px] md:rounded-2xl max-h-[90vh]">
+      {/* ═══════ مودال: سفید، گوشه تیز ═══════ */}
+      <div className="relative bg-white flex flex-col overflow-hidden w-full max-w-[560px] max-h-[90vh]">
 
         {/* هدر */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
-          <h2 className="text-lg font-bold text-slate-800">تنظیمات طراحی</h2>
-          <button onClick={() => setOpen(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+        <div className="px-5 py-4 border-b border-[#E0E0E0] flex items-center justify-between bg-[#F5F5F5] shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#FF6B35]" />
+            <h2 className="text-sm font-semibold text-[#1a1a1a]">تنظیمات طراحی</h2>
+          </div>
+          <button
+            onClick={() => setOpen(false)}
+            className="w-8 h-8 flex items-center justify-center text-[#666] hover:text-[#FF6B35] hover:bg-white transition-colors"
+            aria-label="بستن"
+          >
             <X size={20} />
           </button>
         </div>
 
         {/* اسکرول‌پذیر */}
-        <div className="overflow-y-auto p-6 space-y-8">
+        <div className="overflow-y-auto p-6 space-y-7">
 
           {/* ── ۱. متریال ── */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
-              <Layers size={18} />
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[#1a1a1a] mb-3">
+              <Layers size={16} className="text-[#666]" />
               متریال
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -65,10 +87,10 @@ const SettingsModal = () => {
                     key={mat.id}
                     onClick={() => setGlobalSetting('material', mat.id)}
                     className={`
-                      relative rounded-xl overflow-hidden border-2 transition-all duration-200 text-right
+                      relative overflow-hidden border text-right transition-colors
                       ${isActive
-                        ? 'border-blue-500 shadow-md shadow-blue-100'
-                        : 'border-slate-200 hover:border-slate-400'
+                        ? 'border-[#FF6B35]'
+                        : 'border-[#E0E0E0] hover:border-[#999]'
                       }
                     `}
                   >
@@ -82,16 +104,13 @@ const SettingsModal = () => {
                       />
                     </div>
                     {/* لیبل */}
-                    <div className={`px-2 py-1.5 text-xs font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-600'}`}>
+                    <div className={`px-2 py-1.5 text-xs font-medium transition-colors
+                      ${isActive ? 'bg-[#FF6B35]/10 text-[#FF6B35]' : 'bg-white text-[#666]'}`}>
                       {mat.name}
                     </div>
-                    {/* تیک انتخاب */}
+                    {/* نشان انتخاب — خط پایین نارنجی */}
                     {isActive && (
-                      <div className="absolute top-2 left-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                        <svg viewBox="0 0 10 10" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1.5 5l2.5 2.5 4.5-4.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
+                      <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#FF6B35]" />
                     )}
                   </button>
                 );
@@ -99,31 +118,31 @@ const SettingsModal = () => {
             </div>
           </div>
 
-          <div className="w-full h-px bg-slate-100" />
+          <div className="h-px bg-[#E0E0E0]" />
 
           {/* ── ۲. گوشه‌ها ── */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
-              <Box size={18} />
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[#1a1a1a] mb-3">
+              <Box size={16} className="text-[#666]" />
               حالت گوشه‌ها
             </label>
-            <div className="bg-slate-100 p-1.5 rounded-xl flex gap-2">
-              {APP_CONFIG.corners.map(opt => {
+            <div className="border border-[#E0E0E0] flex">
+              {APP_CONFIG.corners.map((opt, idx) => {
                 const isActive = globalSettings.corner === opt.id;
                 return (
                   <button
                     key={opt.id}
                     onClick={() => setGlobalSetting('corner', opt.id)}
                     className={`
-                      flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200
-                      flex items-center justify-center gap-2
+                      flex-1 py-2.5 px-4 text-sm font-medium transition-colors flex items-center justify-center gap-2
+                      ${idx > 0 ? 'border-r border-[#E0E0E0]' : ''}
                       ${isActive
-                        ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                        ? 'bg-[#FF6B35]/10 text-[#FF6B35]'
+                        : 'text-[#666] hover:bg-[#F5F5F5]'
                       }
                     `}
                   >
-                    <span className={`w-3 h-3 border-2 border-current ${opt.id === 'rounded' ? 'rounded-full' : 'rounded-none'}`} />
+                    <span className={`w-3 h-3 border-2 border-current ${opt.id === 'rounded' ? 'rounded-full' : ''}`} />
                     {opt.name}
                   </button>
                 );
@@ -131,12 +150,12 @@ const SettingsModal = () => {
             </div>
           </div>
 
-          <div className="w-full h-px bg-slate-100" />
+          <div className="h-px bg-[#E0E0E0]" />
 
           {/* ── ۳. سایز ── */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
-              <Ruler size={18} />
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[#1a1a1a] mb-3">
+              <Ruler size={16} className="text-[#666]" />
               سایز کاشی‌ها
             </label>
             <div className="grid grid-cols-5 gap-2">
@@ -148,10 +167,10 @@ const SettingsModal = () => {
                     key={opt.id}
                     onClick={() => setGlobalSetting('size', opt.id)}
                     className={`
-                      flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-sm transition-all duration-200
+                      flex flex-col items-center justify-center py-3 px-2 border text-sm transition-colors
                       ${isActive
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700'
+                        ? 'border-[#FF6B35] bg-[#FF6B35]/10 text-[#FF6B35]'
+                        : 'border-[#E0E0E0] bg-white text-[#666] hover:border-[#999] hover:text-[#333]'
                       }
                     `}
                   >
@@ -161,30 +180,44 @@ const SettingsModal = () => {
                 );
               })}
             </div>
-            <p className="text-xs text-slate-400 mt-2 px-1">تغییر سایز روی همه کاشی‌ها اعمال می‌شود.</p>
+            <p className="text-xs text-[#888] mt-2 px-1">تغییر سایز روی همه کاشی‌ها اعمال می‌شود.</p>
           </div>
 
-          <div className="w-full h-px bg-slate-100" />
+          <div className="h-px bg-[#E0E0E0]" />
 
-          {/* ── ۴. رنگ پس‌زمینه ── */}
+          {/* ── ۴. رنگ پس‌زمینه — گرید تخت، گوشه تیز ═════ */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
-              <Palette size={18} />
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[#1a1a1a] mb-3">
+              <Palette size={16} className="text-[#666]" />
               رنگ پس‌زمینه بوم
             </label>
-            <div className="grid grid-cols-7 gap-3">
-              {colors.map(color => (
-                <button
-                  key={color}
-                  onClick={() => setWallColor(color)}
-                  className={`
-                    w-10 h-10 rounded-full border border-slate-200 shadow-sm transition-all
-                    ${wallColor === color ? 'ring-2 ring-blue-500 ring-offset-2 scale-110' : 'hover:scale-110 hover:shadow-md'}
-                  `}
-                  style={{ backgroundColor: color }}
-                  title={color}
-                />
-              ))}
+            <div className="grid grid-cols-5 gap-2">
+              {WALL_COLORS.map(color => {
+                const active = wallColor?.toLowerCase() === color.toLowerCase();
+                const light = isLightColor(color);
+                return (
+                  <button
+                    key={color}
+                    onClick={() => setWallColor(color)}
+                    className={`
+                      relative aspect-square flex items-center justify-center border transition-colors
+                      ${active
+                        ? 'border-[#FF6B35]'
+                        : 'border-[#E0E0E0] hover:border-[#999]'}
+                    `}
+                    style={{ background: color }}
+                    title={color}
+                  >
+                    {active && (
+                      <span className={`text-xs font-bold ${light ? 'text-[#1a1a1a]' : 'text-white'}`}>✓</span>
+                    )}
+                    {/* خط پایین نارنجی برای انتخاب */}
+                    {active && (
+                      <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#FF6B35]" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

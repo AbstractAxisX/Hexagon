@@ -2,19 +2,16 @@ import { fabric } from 'fabric';
 import { SQUARE_MATH } from '../../utils/squareMath';
 import { createClippedImage } from '../../utils/fabricUtils';
 import { createDefaultTextbox } from '../../utils/textUtils';
-import { createTextLayers } from '../../utils/textLayerUtils';
 
 export const SquareTile = {
   create: (tileData, pixelPos, canvas) => {
     const { id, x: gridX, y: gridY, content, textConfig } = tileData;
     const { x, y } = pixelPos;
-    // ✅ backward-compatible: اگه GAP تعریف نشده بود، 6 (مقدار قدیمی)
-    const GAP = SQUARE_MATH.GAP ?? 6;
-    const size = SQUARE_MATH.SIZE - GAP;
+    const size = SQUARE_MATH.SIZE - 6;
     const cornerRadius = tileData.corner === 'rounded' ? 10 : 0;
 
     // ---------------------------------------------------------
-    // ۱. شکل پایه
+    // ۱. شکل پایه (Background Shape)
     // ---------------------------------------------------------
     const shapeObj = new fabric.Rect({
       width: size,
@@ -28,6 +25,7 @@ export const SquareTile = {
       originY: 'center',
       objectCaching: false,
       name: 'tile-bg',
+      // حیاتی برای درگ شدن گروه
       selectable: false,
       evented: false
     });
@@ -37,7 +35,7 @@ export const SquareTile = {
     }
 
     // ---------------------------------------------------------
-    // clipPath factory
+    // تابع کمکی: ساخت clipPath دقیقاً هم‌شکل کاشی (مربع/گرد)
     // ---------------------------------------------------------
     const makeShapeClip = () => new fabric.Rect({
       width: size,
@@ -49,30 +47,75 @@ export const SquareTile = {
     });
 
     // ---------------------------------------------------------
-    // ۲. لایه‌های متن — shared utility (پریویو = خروجی)
+    // ۲. مدیریت لایه‌های متن (Multi-Layer System)
     // ---------------------------------------------------------
-    const textObjects = createTextLayers(textConfig, {
-      clipPathFactory: makeShapeClip,
-      selectable:      false,
-    });
+    const textObjects = [];
+    const scaleFactor = 1.5; // هماهنگ با ضریب زوم ادیتور
 
-    // Legacy fallback
-    if (textObjects.length === 0) {
-      const initialText = textConfig?.text || content?.text || '';
-      if (initialText) {
-        const textBox = createDefaultTextbox(size * 0.9, initialText);
-        if (textConfig) {
-          if (textConfig.fill) textBox.set('fill', textConfig.fill);
-          if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
-          if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
-        }
-        textBox.set({
-          selectable: false,
-          evented: false,
-          clipPath: makeShapeClip(),
+    if (textConfig?.layers && Array.isArray(textConfig.layers)) {
+        // الف) لایه‌های جدید پیشرفته
+        textConfig.layers.forEach(layer => {
+            // جلوگیری از باگ غیب شدن (NaN Fix)
+            const safeLeft = layer.left ?? layer.previewLeft ?? 150;
+            const safeTop = layer.top ?? layer.previewTop ?? 150;
+
+            const relX = (safeLeft - 150) / scaleFactor;
+            const relY = (safeTop - 150) / scaleFactor;
+
+            const textObj = new fabric.Text(layer.text || '', {
+                left: relX,
+                top: relY,
+                fontSize: (layer.fontSize || 24) / scaleFactor,
+                fontFamily: layer.fontFamily || 'Vazirmatn',
+                fill: layer.fill || '#000000',
+                originX: 'center',
+                originY: 'center',
+                textAlign: 'center',
+                angle: layer.angle || 0,
+                
+                stroke: layer.stroke || null,
+                strokeWidth: (layer.strokeWidth || 0) / scaleFactor,
+                textBackgroundColor: layer.textBackgroundColor || null,
+                
+                shadow: (layer.shadowBlur > 0 || layer.shadowOffsetX !== 0 || layer.shadowOffsetY !== 0) ? new fabric.Shadow({
+                    color: layer.shadowColor || '#000000',
+                    blur: (layer.shadowBlur || 0) / scaleFactor,
+                    offsetX: (layer.shadowOffsetX || 0) / scaleFactor,
+                    offsetY: (layer.shadowOffsetY || 0) / scaleFactor
+                }) : null,
+
+                // غیرفعال کردن انتخاب برای درگ شدن گروه
+                selectable: false,
+                evented: false,
+
+                // ✅ فیکس: متن از مرز کاشی بیرون نمی‌زنه
+                clipPath: (() => {
+                  const clip = makeShapeClip();
+                  clip.set({ left: -relX, top: -relY });
+                  return clip;
+                })(),
+            });
+            textObjects.push(textObj);
         });
-        textObjects.push(textBox);
-      }
+    } else {
+        // ب) پشتیبانی از نسخه قدیمی (Legacy)
+        const initialText = textConfig?.text || content?.text || '';
+        if (initialText) {
+            const textBox = createDefaultTextbox(size * 0.9, initialText);
+            // اعمال استایل‌های ساده قدیمی اگر بود
+            if (textConfig) {
+                if (textConfig.fill) textBox.set('fill', textConfig.fill);
+                if (textConfig.fontFamily) textBox.set('fontFamily', textConfig.fontFamily);
+                if (textConfig.fontSize) textBox.set('fontSize', textConfig.fontSize);
+            }
+            textBox.set({
+              selectable: false,
+              evented: false,
+              // ✅ فیکس: محدود به مرز کاشی
+              clipPath: makeShapeClip(),
+            });
+            textObjects.push(textBox);
+        }
     }
 
     // ---------------------------------------------------------
@@ -88,8 +131,11 @@ export const SquareTile = {
       lockScalingX: true,
       lockScalingY: true,
       lockRotation: true,
+      
+      // فعال بودن درگ برای گروه
       selectable: true,
       evented: true,
+      
       shadow: new fabric.Shadow({
         color: 'rgba(0,0,0,0.05)',
         blur: 10,
@@ -100,7 +146,7 @@ export const SquareTile = {
     });
 
     // ---------------------------------------------------------
-    // ۴. هندل کردن عکس — reverted: بدون targetSize
+    // ۴. هندل کردن عکس
     // ---------------------------------------------------------
     if (content?.type === 'image' && content.data) {
       const clipFactory = () => new fabric.Rect({
@@ -113,7 +159,7 @@ export const SquareTile = {
         if (!group || (group.canvas === undefined && !canvas)) return;
 
         group.add(img);
-
+        
         const border = new fabric.Rect({
           width: size, height: size,
           rx: cornerRadius, ry: cornerRadius,
@@ -124,11 +170,12 @@ export const SquareTile = {
         group.add(border);
 
         shapeObj.set({ fill: 'transparent', stroke: 'transparent' });
-
+        
+        // آوردن متن‌ها به رو
         group.getObjects().forEach(obj => {
-          if (obj.type === 'text' || obj.type === 'textbox') {
-            obj.bringToFront();
-          }
+            if (obj.type === 'text' || obj.type === 'textbox') {
+                obj.bringToFront();
+            }
         });
 
         if (canvas) canvas.requestRenderAll();
@@ -141,12 +188,10 @@ export const SquareTile = {
 
   createGhost: (gridPos, pixelPos) => {
     const { x, y } = gridPos;
-    // ✅ backward-compatible
-    const GAP = SQUARE_MATH.GAP ?? 6;
-
+    
     const shapeObj = new fabric.Rect({
-      width: SQUARE_MATH.SIZE - GAP,
-      height: SQUARE_MATH.SIZE - GAP,
+      width: SQUARE_MATH.SIZE - 6,
+      height: SQUARE_MATH.SIZE - 6,
       fill: 'rgba(0,0,0,0.05)',
       stroke: '#cbd5e1',
       strokeWidth: 2,
